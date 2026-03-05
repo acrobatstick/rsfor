@@ -22,19 +22,26 @@ def main():
 
 
 def get_logger(verbose: bool = False) -> logging.Logger:
-    logger = colorlog.getLogger()
+    logger = colorlog.getLogger("rsfor")
     level = logging.DEBUG if verbose else logging.INFO
     logger.setLevel(level)
 
-    if not logger.handlers:
-        handler = colorlog.StreamHandler()
-        handler.setFormatter(
-            colorlog.ColoredFormatter(
-                "%(log_color)s%(asctime)s [%(levelname)s]: %(message)s"
-            )
-        )
-        logger.addHandler(handler)
+    logger.handlers.clear()
 
+    handler = colorlog.StreamHandler()
+    handler.setFormatter(
+        colorlog.ColoredFormatter(
+            "%(log_color)s%(asctime)s [%(levelname)s]: %(message)s",
+            log_colors={
+                "DEBUG": "cyan",
+                "INFO": "green",
+                "WARNING": "yellow",
+                "ERROR": "red",
+                "CRITICAL": "red,bg_white",
+            },
+        )
+    )
+    logger.addHandler(handler)
     return logger
 
 
