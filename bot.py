@@ -12,12 +12,14 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support import expected_conditions as EC
 import os
 import time
+import logging
 
 
 class Bot:
     # TODO: add external configuration of the online rally TODO: run selenium on headless mode
-    def __init__(self):
+    def __init__(self, logger: logging.Logger):
         service = Service(ChromeDriverManager().install())
+        self.logger = logger
         self.driver = webdriver.Chrome(service=service)
         self.stages = 0
         self.legs = 0
@@ -43,6 +45,8 @@ class Bot:
             "https://rallysimfans.hu/rbr/account2.php?centerbox=bejelentkezes2"
         )
 
+        self.logger.info(f"Attempting to login with username: {username}")
+
         # Login step
         l_username = self.driver.find_element(By.ID, "l_username")
         l_username.send_keys(username)
@@ -66,7 +70,7 @@ class Bot:
                 .text
             )
 
-            print("Logged in as:", logged_username)
+            self.logger.info("Logged in successfully")
             time.sleep(2)
 
         except TimeoutException:
@@ -75,10 +79,12 @@ class Bot:
                     EC.visibility_of_element_located((By.ID, "errorMessages"))
                 )
 
-                print("Error:", error_div.get_attribute("textContent").strip())
+                self.logger.warn(
+                    "Error:", error_div.get_attribute("textContent").strip()
+                )
 
             except TimeoutException:
-                print("Neither login success nor error message found.")
+                self.loggger.warn("Neither login success nor error message found.")
 
     def step_rally(self):
         # TODO: create configuration file for rally using yaml file
@@ -108,6 +114,7 @@ class Bot:
         self.driver.get(
             "https://rallysimfans.hu/rbr/rally_online.php?centerbox=create/rally_create.php&uj=true"
         )
+        self.wait_for_state()
 
         time.sleep(2)
 
@@ -156,7 +163,7 @@ class Bot:
                     By.CSS_SELECTOR, f"select[name='group_id'] option[value='{id}']"
                 )
             except NoSuchElementException:
-                print(f"Group/Car ID {id} not found, skipping...")
+                self.logger.warn(f"Group/Car ID {id} not found, skipping...")
                 continue
 
             option.click()
@@ -224,9 +231,10 @@ class Bot:
                     By.CSS_SELECTOR, f"button[id='surface_filter{filter}']"
                 ).click()
                 try:
-                    Select(
-                        self.driver.find_element(By.ID, "stage_list")
-                    ).select_by_value(current_stage_id)
+                    stage = Select(self.driver.find_element(By.ID, "stage_list"))
+                    stage.select_by_value(current_stage_id)
+                    stage_name = stage.first_selected_option.text
+                    self.logger.info(f"Selecting {stage_name} as stage no.{i+1}")
                     found = True
                     break
                 except NoSuchElementException:
@@ -284,7 +292,7 @@ class Bot:
                     .until(EC.presence_of_element_located((By.NAME, "state")))
                     .get_attribute("value")
                 )
-                print(f"Entering state {state}")
+                self.logger.info(f"Entering {state} form state")
                 return state
             except StaleElementReferenceException:
                 time.sleep(0.5)

@@ -278,3 +278,9 @@ the same for other track.
 - Noon PartCloud Hazy
 - Noon PartCloud LightSnow
 - Noon PartCloud NoRain
+
+## Contributing
+
+Go ahead. I'm pretty sure there's plenty to fix since this is my first
+time building with Python or you can add new feature that we can benefit
+from it.
