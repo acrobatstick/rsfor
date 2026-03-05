@@ -2,10 +2,24 @@
 
 rsfor is a tool for lazy folk like me to automate RallySimFans online rally creation.
 
-## Pre-requisites
+## Usage
 
-Make sure you have installed Google Chrome on your machine with expected
-default path of:
+Make sure you already have Python version v3.4 above installed on your machine.
+Install the required dependencies first before running the program by:
+
+```bash
+pip install -r ./requirements.txt
+```
+
+And run the program by doing:
+
+```bash
+python main.py
+```
+
+> [!WARNING]
+> Make sure you have installed Google Chrome on your machine with expected
+> default path of:
 
 | OS                      | Expected Location of Chrome                                                                 |
 |--------------------------|--------------------------------------------------------------------------------------------|
@@ -156,6 +170,26 @@ default path of:
 | 1  | tarmac  |
 | 2  | gravel  |
 | 3  | snow    |
+
+### Stage Surface Wear
+
+| ID | Wear Status |
+| -- | ----------- |
+| 1 | New |
+| 2 | Normal |
+| 3 | Worn |
+
+### Set Tyre
+
+| ID | Name |
+| -- | ---- |
+| 0 | Tarmac Dry |
+| 1 | Tarmac Intermediate |
+| 2 | Tarmac Wet |
+| 3 | Gravel Dry |
+| 4 | Gravel Intermediate |
+| 5 | Gravel Wet |
+| 6 | Snow |
 
 ### Stage Weathers
 
