@@ -1,0 +1,47 @@
+name: Rally Test
+description: Description Test
+password: testpassword
+
+damage: 2
+stage_count: 2
+leg_count: 2
+pacenote_opt: 4
+roadside_service: 2
+physics_ver: 6
+
+car_ids:
+  - 10
+  - 108
+  - 125
+  - 113
+  - 6969
+
+stages:
+  389:
+    weather: Morning Clear Crisp
+    allow_tyre_change: true
+    allow_setup_change: true
+    set_tyre: Snow
+    service_time: 5
+    wear: 2
+  564:
+    weather: Morning Clear Crisp
+    allow_tyre_change: true
+    allow_setup_change: true
+    set_tyre: Gravel Dry
+    service_time: 60
+    wear: 2
+  259:
+    weather: Morning Clear Crisp
+    allow_tyre_change: true
+    allow_setup_change: true
+    set_tyre: auto
+    service_time: 5
+    wear: 2
+  231:
+    weather: Morning Clear Crisp
+    allow_tyre_change: true
+    allow_setup_change: true
+    set_tyre: Tarmac Dry
+    service_time: 5
+    wear: 2

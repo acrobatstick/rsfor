@@ -163,6 +163,38 @@ python main.py
 
 [https://rallysimfans.hu/rbr/stages.php](https://rallysimfans.hu/rbr/stages.php)
 
+### Rally Specifications
+
+Damage Levels:
+
+| ID | Name |
+| -- | ---- |
+| 2 | Reduced |
+| 3 | Realistic |
+
+- Stage Length must be >= 2 <= 69
+- Leg Length must be >= 1 <= 6
+
+Pacenote Options:
+
+| ID | Name |
+| -- | ---- |
+| 0 | Normal Pacenotes |
+| 1 | Don't show 3D pacenotes |
+| 2 | Don't show the countdown of pacenote distance |
+| 3 | Don't show the the 3D pacenote and countdown of pace note distance |
+| 4 | Only pacenote audio |
+| 12 | No pacenote symbols and audio |
+
+Road Service Minutes:
+
+| ID | Minutes |
+| -- | ------- |
+| 0 | No service |
+| 2 | 2 minutes |
+| 3 | 3 minutes |
+| 5 | 5 minutes | 
+
 ### Stage Surfaces
 
 | ID | Surface |

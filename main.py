@@ -1,5 +1,6 @@
 from bot import Bot
 from dotenv import load_dotenv
+from config import Config
 
 import argparse
 import logging
@@ -13,11 +14,17 @@ def main():
     parser.add_argument(
         "--verbose", "-v", help="incrase output verbosity", action="store_true"
     )
+    parser.add_argument(
+        "--input", "-i", help="rally configuration file or online rally url", type=str
+    )
     args = parser.parse_args()
 
     logger = get_logger(args.verbose)
+    config = Config.from_path(args.input)
 
-    bot = Bot(logger)
+    print(config.__str__())
+
+    bot = Bot(logger, config)
     bot.run()
 
 
