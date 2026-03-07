@@ -1,12 +1,22 @@
-from dataclasses import dataclass, field
-from urllib.parse import urlparse
-from stage import Stage
-import yaml
 import sys
+from dataclasses import dataclass, field
+from typing import ClassVar
+from urllib.parse import urlparse
+
+import requests
+import yaml
+from bs4 import BeautifulSoup
+
+from stage import Stage
 
 
 @dataclass
 class Config:
+    MIN_STAGE_COUNT: ClassVar[int] = 2
+    MAX_STAGE_COUNT: ClassVar[int] = 69
+    MIN_LEG_COUNT: ClassVar[int] = 1
+    MAX_LEG_COUNT: ClassVar[int] = 6
+
     name: str = "Rally Test"
     description: str = "Description Test"
     damage: int = 2
@@ -21,9 +31,7 @@ class Config:
     is_url: bool = False
 
     def __str__(self) -> str:
-        stages_str = "\n".join(
-            f"  {str(stage).replace(chr(10), chr(10) + '  ')}" for stage in self.stages
-        )
+        stages_str = "\n".join(f"  {str(stage).replace(chr(10), chr(10) + '  ')}" for stage in self.stages)
         car_ids_str = ", ".join(self.car_ids)
         return (
             f"Config\n"
@@ -39,29 +47,23 @@ class Config:
             f"  stages         :\n{stages_str}"
         )
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.name:
-            sys.exit(f"Config: Rally must have a name")
+            sys.exit("Config: Rally must have a name")
 
-        if not 2 <= self.damage <= 3:
-            sys.exit(f"Config: damage must be between 2 and 3, got {self.leg_count}")
+        if self.damage not in {2, 3}:
+            sys.exit(f"Config: damage must be between 2 and 3, got {self.damage}")
 
-        if not 2 <= self.stage_count <= 69:
-            sys.exit(
-                f"Config: leg_count must be between 2 and 69, got {self.leg_count}"
-            )
+        if not self.MIN_STAGE_COUNT <= self.stage_count <= self.MAX_STAGE_COUNT:
+            sys.exit(f"Config: stage_count must be between 2 and 69, got {self.stage_count}")
 
         if self.pacenote_opt not in {0, 1, 2, 3, 4, 12}:
-            sys.exit(
-                f"Error: pacenote_opt must be 0-4 or 12, got '{self.pacenote_opt}'"
-            )
+            sys.exit(f"Error: pacenote_opt must be 0-4 or 12, got '{self.pacenote_opt}'")
 
         if self.roadside_service not in {0, 2, 3, 5}:
-            sys.exit(
-                f"Error: roadside_service must be 0, 2, 3, or 5. got '{self.pacenote_opt}'"
-            )
+            sys.exit(f"Error: roadside_service must be 0, 2, 3, or 5. got '{self.pacenote_opt}'")
 
-        if not 1 <= self.leg_count <= 6:
+        if not self.MIN_LEG_COUNT <= self.leg_count <= self.MAX_LEG_COUNT:
             sys.exit(f"Config: leg_count must be between 1 and 6, got {self.leg_count}")
 
     @classmethod
@@ -72,11 +74,11 @@ class Config:
         if not instance.is_url:
             instance.read_from_file(path)
         else:
-            raise NotImplementedError("read_from_url is not implemented yet")
+            instance.read_from_url(path)
         return instance
 
-    def read_from_file(self, path: str):
-        with open(path, "r") as f:
+    def read_from_file(self, path: str) -> None:
+        with open(path) as f:
             data = yaml.safe_load(f)
 
         self.name = str(data.get("name", self.name))
@@ -90,8 +92,7 @@ class Config:
         self.physics_ver = int(data.get("physics_ver", self.physics_ver))
         self.car_ids = [str(car_id) for car_id in data.get("car_ids", self.car_ids)]
         self.stages = [
-            Stage(stage_id=stage_id, **stage_data)
-            for stage_id, stage_data in data.get("stages", {}).items()
+            Stage(stage_id=stage_id, **stage_data) for stage_id, stage_data in data.get("stages", {}).items()
         ]
 
         # update stage count using the length of the stage array instead just
@@ -100,3 +101,23 @@ class Config:
             self.stage_count = len(self.stages)
 
         self.__post_init__()  # re-run validation after loading
+
+    def read_from_url(self, path: str) -> None:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+        }
+        response = requests.get(path, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
+        header = soup.find("div", class_="fejlec4", string="Rally info")
+
+        if header is None:
+            raise ValueError(f"Could not find 'Rally info' section in page: {path}")
+
+        tables = header.find_all_next("table", limit=2)
+
+        for table in tables:
+            print(table)
