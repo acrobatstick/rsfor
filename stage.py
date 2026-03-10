@@ -1,19 +1,58 @@
+import re
 import sys
 from dataclasses import dataclass
+from enum import Enum
 
-tyres = {
-    "auto": -1,
-    "Tarmac Dry": 0,
-    "Tarmac Intermediate": 1,
-    "Tarmac Wet": 2,
-    "Gravel Dry": 3,
-    "Gravel Intermediate": 4,
-    "Gravel Wet": 5,
-    "Snow": 6,
-}
-
+# in minutes
 min_service_time = 5
 max_service_time = 60
+
+
+class Tyre(Enum):
+    Auto = -1
+    TarmacDry = 0
+    TarmacIntermediate = 1
+    TarmacWet = 2
+    GravelDry = 3
+    GravelIntermediate = 4
+    GravelWet = 5
+    Snow = 6
+
+    @classmethod
+    def from_str(cls, value: str) -> "Tyre":
+        try:
+            return cls[value]
+        except KeyError:
+            options = [re.sub(r"(?<!^)(?=[A-Z])", " ", e.name) for e in cls]
+            sys.exit(f"Invalid tyres type: '{value}'.\nValid options: {options}")
+
+
+class Surface(Enum):
+    New = 1
+    Normal = 2
+    Worn = 3
+
+    @classmethod
+    def from_str(cls, value: str) -> "Surface":
+        try:
+            return cls[value]
+        except KeyError:
+            sys.exit(f"Invalid surface wear: '{value}'. Valid options: {[e.name for e in cls]}")
+
+
+class MechanicSkill(Enum):
+    Inexperienced = 1
+    Proficient = 2
+    Competent = 3
+    Skilled = 4
+    Expert = 5
+
+    @classmethod
+    def from_str(cls, value: str) -> "MechanicSkill":
+        try:
+            return cls[value]
+        except KeyError:
+            sys.exit(f"Invalid mechanic skill: '{value}'. Valid options: {[e.name for e in cls]}")
 
 
 @dataclass
@@ -22,9 +61,11 @@ class Stage:
     weather: str = "Morning Clear Crisp"
     allow_tyre_change: bool = True
     allow_setup_change: bool = True
-    set_tyre: str = "auto"
+    set_tyre: Tyre = Tyre.Auto
+    mechanic_skill = MechanicSkill.Skilled
+    surface_wear: Surface = Surface.Normal
     service_time: int = 5
-    wear: int = 2
+    num_mechanics: int = 2
 
     def __post_init__(self) -> None:
         if not min_service_time <= self.service_time <= max_service_time:
@@ -34,14 +75,13 @@ class Stage:
                 f"got {self.service_time}"
             )
             sys.exit(msg)
-        if not isinstance(self.allow_tyre_change, bool):
-            sys.exit(f"Stage({self.stage_id}): allow_tyre_change must be a true/false")
 
-        if not isinstance(self.allow_setup_change, bool):
-            sys.exit(f"Stage({self.stage_id}): allow_setup_change must be a true/false")
-
-        if self.set_tyre not in tyres:
-            sys.exit(f"Stage({self.stage_id}): set_tyres of '{self.set_tyre}' is not available to use")
+        if isinstance(self.set_tyre, str):
+            self.set_tyre = Tyre.from_str("".join(self.set_tyre.split()))
+        if isinstance(self.mechanic_skill, str):
+            self.mechanic_skill = MechanicSkill.from_str(self.mechanic_skill)
+        if isinstance(self.surface_wear, str):
+            self.surface_wear = Surface.from_str(self.surface_wear)
 
     def __str__(self) -> str:
         return (

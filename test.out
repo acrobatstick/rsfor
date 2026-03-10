@@ -1,0 +1,67 @@
+<table width="100%">
+ <tr class="fejlec2">
+  <td align="center" width="15">
+   <b>
+    #
+   </b>
+  </td>
+  <td align="center" width="200">
+   <b>
+    Stage name
+   </b>
+  </td>
+  <td align="center" width="15">
+   <b>
+    Distance
+   </b>
+  </td>
+  <td align="center" width="47">
+   <b>
+    Surface
+   </b>
+  </td>
+  <td align="center" width="80">
+   <b>
+    Weather
+   </b>
+  </td>
+  <td align="center" width="60">
+   <b>
+    Tyre/setup choice
+   </b>
+  </td>
+  <td align="center" width="80">
+   <b>
+    Set tyre
+   </b>
+  </td>
+ </tr>
+ <tr>
+  <td align="left" class="lista_kiemelt" colspan="2">
+   <b>
+    Leg 1
+   </b>
+  </td>
+  <td align="center" class="lista_kiemelt">
+   <b>
+    11.8 km
+   </b>
+  </td>
+  <td align="left" class="lista_kiemelt" colspan="4">
+  </td>
+ </tr>
+ <tr class="paratlan">
+  <td>
+   1
+  </td>
+  <td>
+   <div onmouseout="UnTip()" onmouseover="Tip('&lt;img src=\'images/stages/177.jpg\'/&gt;&lt;table width=300px&gt;&lt;tr&gt;&lt;td align=center colspan=2&gt;&lt;h2&gt;Semetin 2010&lt;/h2&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td align=center colspan=2&gt;ID: 177&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td align=right width=125&gt;&lt;b&gt;Country:&lt;/b&gt;&lt;/td&gt;&lt;td style=\'vertical-align:top\'&gt;&lt;img src=\'images/flag/CZ.png\' height=\'16\'/&gt; Czech Republic&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td align=right width=125&gt;&lt;b&gt;Surface:&lt;/b&gt;&lt;/td&gt;&lt;td&gt;tarmac&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td align=right width=125&gt;&lt;b&gt;Length:&lt;/b&gt;&lt;/td&gt;&lt;td&gt;11.8 km&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td align=right width=125&gt;&lt;b&gt;Author:&lt;/b&gt;&lt;/td&gt;&lt;td&gt;Vasek Sourek&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;')">
+    Semetin 2010
+   </div>
+  </td>
+  <td align="center">
+   11.8 km
+  </td>
+ </tr>
+</table>
+

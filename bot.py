@@ -125,7 +125,7 @@ class Bot:
         self.wait_for_state()
 
     def step_cars(self) -> None:
-        for car_id in self.config.car_ids:
+        for car_id in self.config.car_groups:
             try:
                 option = self.driver.find_element(By.CSS_SELECTOR, f"select[name='group_id'] option[value='{car_id}']")
             except NoSuchElementException:
@@ -195,7 +195,7 @@ class Bot:
             # handle not configuring some configurations cant be applied on last leg's stage
             if i < int(self.config.stage_count) - 1:
                 # surface wear
-                self.driver.find_element(By.CSS_SELECTOR, f"input[id='surface{s.wear}']").click()
+                self.driver.find_element(By.CSS_SELECTOR, f"input[id='surface{s.surface_wear.value}']").click()
 
                 Select(self.driver.find_element(By.ID, "service_time")).select_by_value(str(s.service_time))
 

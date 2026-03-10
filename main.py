@@ -5,7 +5,6 @@ import sys
 import colorlog
 from dotenv import load_dotenv
 
-from bot import Bot
 from config import Config
 
 load_dotenv()
@@ -24,8 +23,10 @@ def main() -> int:
         logger.exception("Error while reading config")
         return 1
 
-    bot = Bot(logger, config)
-    bot.run()
+    print(config)
+
+    # bot = Bot(logger, config)
+    # bot.run()
     return 0
 
 
