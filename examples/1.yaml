@@ -2,7 +2,7 @@ name: Rally Test
 description: Description Test
 password: testpassword
 
-damage: realistic
+damage: Realistic
 stage_count: 2
 leg_count: 2
 pacenote_opt: 4

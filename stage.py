@@ -1,7 +1,8 @@
-import re
 import sys
 from dataclasses import dataclass
 from enum import Enum
+
+from utils import UnknownValueError
 
 # in minutes
 min_service_time = 5
@@ -10,21 +11,37 @@ max_service_time = 60
 
 class Tyre(Enum):
     Auto = -1
-    TarmacDry = 0
-    TarmacIntermediate = 1
-    TarmacWet = 2
-    GravelDry = 3
-    GravelIntermediate = 4
-    GravelWet = 5
+    Tarmac_Dry = 0
+    Tarmac_Intermediate = 1
+    Tarmac_Wet = 2
+    Gravel_Dry = 3
+    Gravel_Intermediate = 4
+    Gravel_Wet = 5
     Snow = 6
 
-    @classmethod
-    def from_str(cls, value: str) -> "Tyre":
-        try:
-            return cls[value]
-        except KeyError:
-            options = [re.sub(r"(?<!^)(?=[A-Z])", " ", e.name) for e in cls]
-            sys.exit(f"Invalid tyres type: '{value}'.\nValid options: {options}")
+    @staticmethod
+    def from_str(value: str) -> "Tyre":
+        value = value.lower()
+        match value:
+            case "auto" | "-1":
+                result = Tyre.Auto
+            case "tarmac dry" | "0":
+                result = Tyre.Tarmac_Dry
+            case "tarmac intermediate" | "1":
+                result = Tyre.Tarmac_Intermediate
+            case "tarmac wet" | "2":
+                result = Tyre.Tarmac_Wet
+            case "gravel dry" | "3":
+                result = Tyre.Gravel_Dry
+            case "gravel intermediate" | "4":
+                result = Tyre.Gravel_Intermediate
+            case "gravel wet" | "5":
+                result = Tyre.Gravel_Wet
+            case "snow" | "6":
+                result = Tyre.Snow
+            case _:
+                raise UnknownValueError(prop="Tyre", value=value)
+        return result
 
 
 class Surface(Enum):
@@ -35,7 +52,7 @@ class Surface(Enum):
     @classmethod
     def from_str(cls, value: str) -> "Surface":
         try:
-            return cls[value]
+            return cls[value.capitalize()]
         except KeyError:
             sys.exit(f"Invalid surface wear: '{value}'. Valid options: {[e.name for e in cls]}")
 

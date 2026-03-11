@@ -10,8 +10,8 @@ from selenium.common.exceptions import (
     StaleElementReferenceException,
     TimeoutException,
 )
-from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.webdriver import WebDriver as Chrome
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import Select, WebDriverWait
@@ -38,7 +38,7 @@ class Bot:
         service = Service(ChromeDriverManager().install())
         self.logger = logger
         self.config = config
-        self.driver = Chrome(service=service)  # type: ignore[operator]
+        self.driver = Chrome(service=service)
 
     def run(self) -> None:
         try:
@@ -106,14 +106,16 @@ class Bot:
         self.driver.find_element(By.NAME, "password2").send_keys(self.config.password)
 
         damage_checkbox = self.driver.find_element(
-            By.CSS_SELECTOR, f"input[name='damage_id'][value='{self.config.damage}']"
+            By.CSS_SELECTOR, f"input[name='damage_id'][value='{self.config.damage.value}']"
         )
         if not damage_checkbox.is_selected():
             damage_checkbox.click()
 
         Select(self.driver.find_element(By.NAME, "stages")).select_by_value(str(self.config.stage_count))
         Select(self.driver.find_element(By.NAME, "legs")).select_by_value(str(self.config.leg_count))
-        Select(self.driver.find_element(By.NAME, "pacenotes_options")).select_by_value(str(self.config.pacenote_opt))
+        Select(self.driver.find_element(By.NAME, "pacenotes_options")).select_by_value(
+            str(self.config.pacenote_opt.value)
+        )
         Select(self.driver.find_element(By.NAME, "road_side_service")).select_by_value(
             str(self.config.roadside_service)
         )
@@ -137,8 +139,12 @@ class Bot:
                 # Redo selection
                 option = self.driver.find_element(By.CSS_SELECTOR, f"select[name='group_id'] option[value='{car_id}']")
             except NoSuchElementException:
-                self.logger.warning("Group/Car ID %s not found, skipping...", car_id)
-                continue
+                # if the car id provided is not an id, look for the option textContent instead
+                options = self.driver.find_elements(By.CSS_SELECTOR, "select[name='group_id'] option")
+                option = next((o for o in options if o.text.strip() == car_id), None)
+                if option is None:
+                    self.logger.warning("Group/Car ID %s not found, skipping...", car_id)
+                    continue
 
             option.click()
             self.driver.find_element(By.CSS_SELECTOR, "input[type='button'][value='-->>']").click()
@@ -152,7 +158,7 @@ class Bot:
         step = 1
         while step < self.config.leg_count:
             # TODO: handle leg open/close time from config
-            time.sleep(1)
+            time.sleep(5)
             self.click_next()
             self.wait_for_state()
             step += 1

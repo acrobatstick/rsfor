@@ -1,6 +1,7 @@
 import re
 import sys
 from dataclasses import dataclass, field
+from enum import Enum
 from html import unescape
 from typing import ClassVar
 from urllib.parse import urlparse
@@ -12,6 +13,59 @@ from bs4 import BeautifulSoup, Tag
 import utils
 from stage import Stage, Tyre
 
+KEY_MAP = {
+    "Description": "description",
+    "Creator": "creator",
+    "Damage Level": "damage",
+    "Number of Legs": "leg_count",
+    "SuperRally": "super_rally",
+    "Pacenotes options": "pacenote_opt",
+    "Car Groups": "car_groups",
+}
+
+
+class Damage(Enum):
+    Reduced = 2
+    Realistic = 3
+
+    @staticmethod
+    def from_str(value: str) -> "Damage":
+        match value:
+            case "reduced" | "2":
+                return Damage.Reduced
+            case "realistic" | "3":
+                return Damage.Realistic
+            case _:
+                raise utils.UnknownValueError(prop="Damage", value=value)
+
+
+class PacenoteStyle(Enum):
+    Normal = 0
+    No_3D_Pacenotes = 1
+    No_Countdown = 2
+    No_3D_And_Countdown = 3
+    Audio_Only = 4
+    No_Symbols_And_Audio = 12
+
+    @staticmethod
+    def from_str(value: str) -> "PacenoteStyle":
+        match value.lower():
+            case "normal pacenotes" | "0":
+                result = PacenoteStyle.Normal
+            case "don't show 3d pacenotes" | "1":
+                result = PacenoteStyle.No_3D_Pacenotes
+            case "don't show the countdown of pacenote distance" | "2":
+                result = PacenoteStyle.No_Countdown
+            case "don't show the 3d pacenote and countdown of pace note distance" | "3":
+                result = PacenoteStyle.No_3D_And_Countdown
+            case "only pacenote audio" | "4":
+                result = PacenoteStyle.Audio_Only
+            case "no pacenote symbols and audio" | "12":
+                result = PacenoteStyle.No_Symbols_And_Audio
+            case _:
+                raise utils.UnknownValueError(prop="Pacenote Style", value=value)
+        return result
+
 
 @dataclass
 class Config:
@@ -22,10 +76,10 @@ class Config:
 
     name: str = "Rally Test"
     description: str = "Description Test"
-    damage: str = "realistic"
+    damage: Damage = Damage.Realistic
     stage_count: int = 2
     leg_count: int = 2
-    pacenote_opt: int = 4
+    pacenote_opt: PacenoteStyle = PacenoteStyle.Audio_Only
     roadside_service: int = 2
     password: str = ""
     physics_ver: int = 6
@@ -54,14 +108,8 @@ class Config:
         if not self.name:
             sys.exit("Config: Rally must have a name")
 
-        if self.damage not in {"realistic", "reduced"}:
-            sys.exit(f"Config: damage must be 'realistic' or 'reduced', got {self.damage}")
-
         if not self.MIN_STAGE_COUNT <= self.stage_count <= self.MAX_STAGE_COUNT:
             sys.exit(f"Config: stage_count must be between 2 and 69, got {self.stage_count}")
-
-        if self.pacenote_opt not in {0, 1, 2, 3, 4, 12}:
-            sys.exit(f"Error: pacenote_opt must be 0-4 or 12, got '{self.pacenote_opt}'")
 
         if self.roadside_service not in {0, 2, 3, 5}:
             sys.exit(f"Error: roadside_service must be 0, 2, 3, or 5. got '{self.pacenote_opt}'")
@@ -87,10 +135,10 @@ class Config:
         self.name = str(data.get("name", self.name))
         self.description = str(data.get("description", self.description))
         self.password = str(data.get("password", self.password))
-        self.damage = data.get("damage", self.damage)
+        self.damage = Damage.from_str(data.get("damage", self.damage))
         self.stage_count = int(data.get("stage_count", self.stage_count))
         self.leg_count = int(data.get("leg_count", self.leg_count))
-        self.pacenote_opt = int(data.get("pacenote_opt", self.pacenote_opt))
+        self.pacenote_opt = PacenoteStyle.from_str(data.get("pacenote_opt", self.pacenote_opt))
         self.roadside_service = int(data.get("roadside_service", self.roadside_service))
         self.physics_ver = int(data.get("physics_ver", self.physics_ver))
         self.car_groups = [str(car_id) for car_id in data.get("car_groups", self.car_groups)]
@@ -132,6 +180,8 @@ class Config:
         if isinstance(table2, Tag):
             self.scrape_table2(table2)
 
+        self.__post_init__()  # re-run validation after loading
+
     def scrape_table1(self, table: Tag) -> None:
         data = []
         rows = table.find_all("tr")
@@ -139,16 +189,6 @@ class Config:
             if isinstance(row, Tag):
                 cells = row.get_text(separator=" ", strip=True).split(":", 1)
                 data.append(cells)
-
-        key_map = {
-            "Description": "description",
-            "Creator": "creator",
-            "Damage Level": "damage",
-            "Number of Legs": "leg_count",
-            "SuperRally": "super_rally",
-            "Pacenotes options": "pacenote_opt",
-            "Car Groups": "car_groups",
-        }
 
         car_groups_at = -1
 
@@ -158,13 +198,20 @@ class Config:
             if len(cells) == 2:
                 key, value = cells
                 value = value.strip()
-                mapped = key_map.get(key.strip())
+                mapped = KEY_MAP.get(key.strip())
                 if mapped and hasattr(self, mapped):
-                    if mapped == "car_groups":
-                        setattr(self, mapped, [c.strip() for c in value.split(",")])
-                        car_groups_at = idx
-                    else:
-                        setattr(self, mapped, value)
+                    match mapped:
+                        case "leg_count":
+                            setattr(self, mapped, int(value))
+                        case "car_groups":
+                            setattr(self, mapped, [c.strip() for c in value.split(",")])
+                            car_groups_at = idx
+                        case "damage":
+                            setattr(self, mapped, Damage.from_str(value))
+                        case "pacenote_opt":
+                            setattr(self, mapped, PacenoteStyle.from_str(value))
+                        case _:
+                            setattr(self, mapped, value)
 
         if car_groups_at != -1:
             # TODO: set the schedule of each leg
@@ -205,9 +252,8 @@ class Config:
             stage.allow_tyre_change = utils.string_to_boolean_map(allow_tyre_change) or False
             stage.allow_setup_change = utils.string_to_boolean_map(allow_setup_change) or False
 
-            set_tyre = "".join(cells[6].get_text(strip=True).split())
-
-            if not allow_tyre_change or set_tyre == "Keepprevious":
+            set_tyre = cells[6].get_text(strip=True)
+            if not allow_tyre_change or set_tyre == "Keep previous":
                 stage.set_tyre = Tyre.Auto
             else:
                 stage.set_tyre = Tyre.from_str(set_tyre)

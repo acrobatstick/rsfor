@@ -5,6 +5,7 @@ import sys
 import colorlog
 from dotenv import load_dotenv
 
+from bot import Bot
 from config import Config
 
 load_dotenv()
@@ -25,8 +26,8 @@ def main() -> int:
 
     print(config)
 
-    # bot = Bot(logger, config)
-    # bot.run()
+    bot = Bot(logger, config)
+    bot.run()
     return 0
 
 
