@@ -149,7 +149,11 @@ class Config:
         self.super_rally = data.get("super_rally", self.super_rally)
 
         stages = [
-            Stage(id=stage["id"], max_leg=self.leg_count, **{k: v for k, v in stage.items() if k != "id"})
+            Stage(
+                id=stage["id"],
+                max_leg=self.leg_count,
+                **{k: v for k, v in stage.items() if k != "id"},
+            )
             for stage in data.get("stages", [])
         ]
 

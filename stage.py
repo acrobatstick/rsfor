@@ -51,10 +51,16 @@ class Surface(Enum):
 
     @classmethod
     def from_str(cls, value: str) -> "Surface":
-        try:
-            return cls[value.capitalize()]
-        except KeyError:
-            sys.exit(f"Invalid surface wear: '{value}'. Valid options: {[e.name for e in cls]}")
+        value = value.lower()
+        match value:
+            case "new" | "1":
+                return Surface.New
+            case "normal" | "2":
+                return Surface.Normal
+            case "worn" | "3":
+                return Surface.Worn
+            case _:
+                raise UnknownValueError(prop="Surface", value=value)
 
 
 class MechanicSkill(Enum):
@@ -95,12 +101,12 @@ class Stage:
             )
             sys.exit(msg)
 
-        if isinstance(self.set_tyre, str):
-            self.set_tyre = Tyre.from_str(self.set_tyre)
-        if isinstance(self.mechanic_skill, str):
-            self.mechanic_skill = MechanicSkill.from_str(self.mechanic_skill)
-        if isinstance(self.surface_wear, str):
-            self.surface_wear = Surface.from_str(self.surface_wear)
+        if isinstance(self.set_tyre, (str, int)):
+            self.set_tyre = Tyre.from_str(str(self.set_tyre))
+        if isinstance(self.mechanic_skill, (str, int)):
+            self.mechanic_skill = MechanicSkill.from_str(str(self.mechanic_skill))
+        if isinstance(self.surface_wear, (str, int)):
+            self.surface_wear = Surface.from_str(str(self.surface_wear))
         if self.start_at_leg not in range(1, self.max_leg + 1):
             sys.exit(
                 f"Stage({self.id}): start_at_leg must be in range of 1 <= n <= {self.max_leg}, got={self.start_at_leg}"
