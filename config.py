@@ -1,3 +1,4 @@
+import logging
 import re
 import sys
 from dataclasses import dataclass, field
@@ -73,7 +74,7 @@ class Config:
     MAX_STAGE_COUNT: ClassVar[int] = 69
     MIN_LEG_COUNT: ClassVar[int] = 1
     MAX_LEG_COUNT: ClassVar[int] = 6
-
+    logger: logging.Logger = field(default_factory=lambda: logging.getLogger(__name__))
     name: str = "Rally Test"
     description: str = "Description Test"
     damage: Damage = Damage.Realistic
@@ -107,23 +108,39 @@ class Config:
 
     def __post_init__(self) -> None:
         if not self.name:
-            sys.exit("Config: Rally must have a name")
+            self.logger.error("Rally must have a name")
+            sys.exit(1)
 
         if not self.MIN_STAGE_COUNT <= self.stage_count <= self.MAX_STAGE_COUNT:
-            sys.exit(f"Config: stage_count must be between 2 and 69, got {self.stage_count}")
+            self.logger.error(
+                "stage_count must be between %d and %d, got %d",
+                self.MIN_STAGE_COUNT,
+                self.MAX_STAGE_COUNT,
+                self.stage_count,
+            )
+            sys.exit(1)
 
         if self.roadside_service not in {0, 2, 3, 5}:
-            sys.exit(f"Error: roadside_service must be 0, 2, 3, or 5. got '{self.pacenote_opt}'")
+            self.logger.error("roadside_service must be 0, 2, 3, or 5. got %d", self.roadside_service)
+            sys.exit(1)
 
         if not self.MIN_LEG_COUNT <= self.leg_count <= self.MAX_LEG_COUNT:
-            sys.exit(f"Config: leg_count must be between 1 and 6, got {self.leg_count}")
+            self.logger.error(
+                "leg_count must be between %d and %d, got %d",
+                self.MIN_LEG_COUNT,
+                self.MAX_LEG_COUNT,
+                self.stage_count,
+            )
+            sys.exit(1)
 
         if self.leg_count > self.stage_count:
-            sys.exit("Cannot have more legs than stages")
+            self.logger.error("Cannot have more legs than stages")
+            sys.exit(1)
 
     @classmethod
-    def from_path(cls, path: str) -> "Config":
+    def from_path(cls, logger: logging.Logger, path: str) -> "Config":
         instance = cls()  # creates with all defaults
+        instance.logger = logger
         parsed = urlparse(path)
         instance.is_url = parsed.scheme in ("http", "https")
         if not instance.is_url:
@@ -172,7 +189,8 @@ class Config:
                 # should not raise this error
                 raise LookupError
             if not stages:
-                sys.exit(f"Leg({i}) must have at least 1 stage")
+                self.logger.error("Leg(%d) must have at least 1 stage", i)
+                sys.exit(1)
 
         self.__post_init__()  # re-run validation after loading
 
@@ -188,11 +206,32 @@ class Config:
         soup = BeautifulSoup(response.text, "html5lib")
         header = soup.find("div", class_="fejlec4", string="Rally info")
 
+        is_championship = False
         # find the "header" inside the online rally page as the anchor
         # to find the rally info such as the stages and legs details
-        if header is None:
-            sys.exit(f"Could not find 'Rally info' section in page: {path}")
+        if not isinstance(header, Tag):
+            # if header is not found. it can be a championship page.
+            # select the last <td> element since it's the main container for the rally
+            header = soup.find_all("td", class_="szdb")[-1]
+            if not isinstance(header, Tag):
+                self.logger.error("Could not find 'Rally info' section in page: %s", path)
+                sys.exit(1)
 
+            # to determine rally championship, check if header have 4 tables inside it
+            if len(header.find_all("table")) >= 4:
+                is_championship = True
+            else:
+                self.logger.error("Could not find 'Rally info' section in page: %s", path)
+                sys.exit(1)
+
+        if is_championship:
+            # not implementing due to most of championship rally are using stage aliases
+            self.logger.error("Automating championship rally is not implemented")
+            sys.exit(1)
+
+        # select the last 2 tables
+        #   - table1 = rally overview details
+        #   - table2 = leg details
         tables = header.find_all_next("table", limit=2)
         table1 = tables[0] if len(tables) > 0 else None
         table2 = tables[1] if len(tables) > 1 else None
@@ -242,7 +281,8 @@ class Config:
             # TODO: set the schedule of each leg
             data = data[car_groups_at + 1 :]
         else:
-            sys.exit("could not find car group element")
+            self.logger.error("Could not find car group element")
+            sys.exit(1)
 
     def scrape_table2(self, table: Tag) -> None:
         rows = table.find_all("tr")
@@ -263,11 +303,13 @@ class Config:
                     sys.exit("not a valid stage row details")
                 div = row.find("div", onmouseover=True)
                 if not isinstance(div, Tag):
-                    sys.exit("could not get the stage tip element")
+                    self.logger.error("Could not get stage information from stage list, maybe using alias?")
+                    sys.exit(1)
                 onmouseover = str(div.get("onmouseover", ""))
                 match = re.search(r"ID:\s*(\d+)", unescape(onmouseover))
                 if not match:
-                    sys.exit("could not get the stage id from the tip element")
+                    self.logger.fatal("Could not get stage id from stage tip element")
+                    sys.exit(1)
 
                 stage_id = int(match.group(1))
                 stage = Stage(id=stage_id, start_at_leg=1)
@@ -287,7 +329,8 @@ class Config:
                 while i < len(rows):
                     next_row = rows[i]
                     if not isinstance(next_row, Tag):
-                        sys.exit("next_row is not an html element")
+                        self.logger.fatal("next_row is not an html element")
+                        sys.exit(1)
 
                     next_classes = next_row.get("class") or []
                     if "servicepark" in next_classes:

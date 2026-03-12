@@ -99,8 +99,12 @@ class Bot:
 
         time.sleep(2)
 
+        self.logger.info("Initializing rally: %s", self.config.name)
+
         self.driver.find_element(By.NAME, "rally_name").send_keys(self.config.name)
         self.driver.find_element(By.NAME, "description").send_keys(self.config.description)
+
+        # TODO: should prompt if arg password is passed
         self.driver.find_element(By.NAME, "password1").send_keys(self.config.password)
         self.driver.find_element(By.NAME, "password2").send_keys(self.config.password)
 
@@ -142,9 +146,10 @@ class Bot:
                 options = self.driver.find_elements(By.CSS_SELECTOR, "select[name='group_id'] option")
                 option = next((o for o in options if o.text.strip() == car_id), None)
                 if option is None:
-                    self.logger.warning("Group/Car ID %s not found, skipping...", car_id)
+                    self.logger.warning("Car Groups: ID %s not found, skipping...", car_id)
                     continue
 
+            self.logger.info("Car Groups: %s selected", car_id)
             option.click()
             self.driver.find_element(By.CSS_SELECTOR, "input[type='button'][value='-->>']").click()
 
@@ -160,7 +165,7 @@ class Bot:
             # TODO: handle super rally and whatever "Leg starts at stage" is from configuration
             if at_leg != 1:
                 start_at = start_at_list.pop(0)
-                self.logger.info("Leg %d started at stage %d", at_leg, start_at)
+                self.logger.info("Legs: Leg %d started at stage %d", at_leg, start_at)
                 Select(self.driver.find_element(By.NAME, "start_stage_no")).select_by_value(str(start_at))
 
             # look for superrally at the second leg. I personally don't know why
@@ -181,30 +186,43 @@ class Bot:
         stages = self.config.stages()
         for i in range(int(self.config.stage_count)):
             s = stages.pop(0)
+            name = ""
             found = False
             for surface_id in range(1, 4):
-                # change stage surface filter to update the stage list
-                self.driver.find_element(By.CSS_SELECTOR, f"button[id='surface_filter{surface_id}']").click()
                 try:
+                    # change stage surface filter to update the stage list
+                    self.driver.find_element(By.CSS_SELECTOR, f"button[id='surface_filter{surface_id}']").click()
                     stage_el = Select(self.driver.find_element(By.ID, "stage_list"))
                     stage_el.select_by_value(str(s.id))
-                    # refetch the element since it sometimes throw a stale error wtf...
+                    # wait for DOM to settle after selection
+                    time.sleep(0.5)
                     stage_el = Select(self.driver.find_element(By.ID, "stage_list"))
-                    stage_name = stage_el.first_selected_option.text
-                    self.logger.info("Selecting %s as stage no.%d", stage_name, i + 1)
+                    name = stage_el.first_selected_option.text
+                    self.logger.info("Stages: Selecting %s as stage no.%d", name, i + 1)
                     found = True
                     break
                 except NoSuchElementException:
-                    self.logger.warning("Stage not found in surface type %d. Move to next filter", surface_id)
+                    self.logger.warning(
+                        "Stages: id %d not found in surface type %d, moving to next filter", s.id, surface_id
+                    )
                     continue
 
             if not found:
-                self.logger.error("Could not find stage with id %d", s.id)
+                self.logger.error(
+                    "Stages: Could not find stage with id %d, see stage list: https://rallysimfans.hu/rbr/stages.php",
+                    s.id,
+                )
                 return
 
-            # NOTE: ignore wetness for now. use the default selection from stage weather instead
-            with contextlib.suppress(NoSuchElementException):
-                Select(self.driver.find_element(By.ID, "tracksettings_list")).select_by_value(s.weather)
+            # NOTE: ignore wetness for now
+            try:
+                Select(self.driver.find_element(By.ID, "tracksettings_list")).select_by_visible_text(s.weather)
+            except NoSuchElementException:
+                self.logger.warning(
+                    "Stages: Weather preset %s not found for %s, skipping weather selection (using default)",
+                    s.weather,
+                    name,
+                )
 
             tyre_checkbox = self.driver.find_element(By.NAME, "choose_tyre")
             if tyre_checkbox.is_selected() != s.allow_tyre_change:
@@ -251,7 +269,7 @@ class Bot:
                     .until(ec.presence_of_element_located((By.NAME, "state")))
                     .get_attribute("value")
                 )
-                self.logger.info("Entering %s form state", state)
+                self.logger.debug("Entering %s form state", state)
                 return state
             time.sleep(0.5)
             attempts += 1

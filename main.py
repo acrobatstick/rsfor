@@ -19,7 +19,7 @@ def main() -> int:
 
     logger = get_logger(verbose=args.verbose)
     try:
-        config = Config.from_path(args.input)
+        config = Config.from_path(logger, args.input)
     except Exception:
         logger.exception("Error while reading config")
         return 1
@@ -39,7 +39,7 @@ def get_logger(*, verbose: bool = False) -> logging.Logger:
     handler = colorlog.StreamHandler()
     handler.setFormatter(
         colorlog.ColoredFormatter(
-            "%(log_color)s%(asctime)s [%(levelname)s]: %(message)s",
+            "%(log_color)s[%(levelname)s] %(message)s",
             log_colors={
                 "DEBUG": "cyan",
                 "INFO": "green",
