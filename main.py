@@ -24,8 +24,6 @@ def main() -> int:
         logger.exception("Error while reading config")
         return 1
 
-    print(config)
-
     bot = Bot(logger, config)
     bot.run()
     return 0

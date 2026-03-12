@@ -84,11 +84,12 @@ class Config:
     password: str = ""
     physics_ver: int = 6
     car_groups: list = field(default_factory=list)
-    stages: list = field(default_factory=list)
     is_url: bool = False
+    legs: dict[int, list[Stage]] = field(default_factory=dict)
+    super_rally: bool = True
 
     def __str__(self) -> str:
-        stages_str = "\n".join(f"  {str(stage).replace(chr(10), chr(10) + '  ')}" for stage in self.stages)
+        stages_str = "\n".join(f"  {str(stage).replace(chr(10), chr(10) + '  ')}" for stage in self.stages())
         car_groups_str = ", ".join(self.car_groups)
         return (
             f"Config\n"
@@ -117,6 +118,9 @@ class Config:
         if not self.MIN_LEG_COUNT <= self.leg_count <= self.MAX_LEG_COUNT:
             sys.exit(f"Config: leg_count must be between 1 and 6, got {self.leg_count}")
 
+        if self.leg_count > self.stage_count:
+            sys.exit("Cannot have more legs than stages")
+
     @classmethod
     def from_path(cls, path: str) -> "Config":
         instance = cls()  # creates with all defaults
@@ -138,18 +142,33 @@ class Config:
         self.damage = Damage.from_str(data.get("damage", self.damage))
         self.stage_count = int(data.get("stage_count", self.stage_count))
         self.leg_count = int(data.get("leg_count", self.leg_count))
-        self.pacenote_opt = PacenoteStyle.from_str(data.get("pacenote_opt", self.pacenote_opt))
+        self.pacenote_opt = PacenoteStyle.from_str(str(data.get("pacenote_opt", self.pacenote_opt)))
         self.roadside_service = int(data.get("roadside_service", self.roadside_service))
         self.physics_ver = int(data.get("physics_ver", self.physics_ver))
         self.car_groups = [str(car_id) for car_id in data.get("car_groups", self.car_groups)]
-        self.stages = [
-            Stage(stage_id=stage_id, **stage_data) for stage_id, stage_data in data.get("stages", {}).items()
+        self.super_rally = data.get("super_rally", self.super_rally)
+
+        stages = [
+            Stage(id=stage["id"], max_leg=self.leg_count, **{k: v for k, v in stage.items() if k != "id"})
+            for stage in data.get("stages", [])
         ]
+
+        self.legs = {i: [] for i in range(1, self.leg_count + 1)}
 
         # update stage count using the length of the stage array instead just
         # to make sure
-        if len(self.stages) != self.stage_count:
-            self.stage_count = len(self.stages)
+        if len(stages) != self.stage_count:
+            self.stage_count = len(stages)
+
+        self.insert_stages_to_leg(stages)
+
+        for i in range(1, self.leg_count + 1):
+            stages = self.legs.get(i)
+            if stages is None:
+                # should not raise this error
+                raise LookupError
+            if not stages:
+                sys.exit(f"Leg({i}) must have at least 1 stage")
 
         self.__post_init__()  # re-run validation after loading
 
@@ -203,6 +222,8 @@ class Config:
                     match mapped:
                         case "leg_count":
                             setattr(self, mapped, int(value))
+                        case "super_rally":
+                            setattr(self, mapped, utils.string_to_boolean_map(value) or True)
                         case "car_groups":
                             setattr(self, mapped, [c.strip() for c in value.split(",")])
                             car_groups_at = idx
@@ -222,65 +243,109 @@ class Config:
     def scrape_table2(self, table: Tag) -> None:
         rows = table.find_all("tr")
         stages = []
-
-        for row in rows:
+        leg = 1
+        i = 0
+        while i < len(rows):
+            row = rows[i]
+            i += 1
             if not isinstance(row, Tag):
                 continue
+
             classes = row.get("class") or []
-            if "paratlan" not in classes and "paros" not in classes:
-                continue
 
-            cells = row.find_all("td", recursive=False)
-            if len(cells) != 7:
-                sys.exit("not a valid stage row details")
+            if "paratlan" in classes or "paros" in classes:
+                cells = row.find_all("td", recursive=False)
+                if len(cells) != 7:
+                    sys.exit("not a valid stage row details")
+                div = row.find("div", onmouseover=True)
+                if not isinstance(div, Tag):
+                    sys.exit("could not get the stage tip element")
+                onmouseover = str(div.get("onmouseover", ""))
+                match = re.search(r"ID:\s*(\d+)", unescape(onmouseover))
+                if not match:
+                    sys.exit("could not get the stage id from the tip element")
 
-            div = row.find("div", onmouseover=True)
-            if not isinstance(div, Tag):
-                sys.exit("could not get the stage tip element")
+                stage_id = int(match.group(1))
+                stage = Stage(id=stage_id, start_at_leg=1)
+                stage.weather = cells[4].get_text()
+                allow_tyre_change, allow_setup_change = cells[5].get_text().split(" / ")
+                stage.allow_tyre_change = utils.string_to_boolean_map(allow_tyre_change) or False
+                stage.allow_setup_change = utils.string_to_boolean_map(allow_setup_change) or False
+                stage.start_at_leg = leg
+                set_tyre = cells[6].get_text(strip=True)
 
-            onmouseover = str(div.get("onmouseover", ""))
-            match = re.search(r"ID:\s*(\d+)", unescape(onmouseover))
-            if not match:
-                sys.exit("could not get the stage id from the tip element")
+                if not allow_tyre_change or set_tyre == "Keep previous":
+                    stage.set_tyre = Tyre.Auto
+                else:
+                    stage.set_tyre = Tyre.from_str(set_tyre)
+                has_service_park = False
 
-            stage_id = int(match.group(1))
+                while i < len(rows):
+                    next_row = rows[i]
+                    if not isinstance(next_row, Tag):
+                        sys.exit("next_row is not an html element")
 
-            stage = Stage(stage_id=stage_id)
+                    next_classes = next_row.get("class") or []
+                    if "servicepark" in next_classes:
+                        has_service_park = True
+                    elif "paratlan" in next_classes or "paros" in next_classes:
+                        break
+                    elif not next_classes:
+                        leg += 1
+                    if has_service_park:
+                        break
+                    i += 1
 
-            stage.weather = cells[4].get_text()
-            allow_tyre_change, allow_setup_change = cells[5].get_text().split(" / ")
-            stage.allow_tyre_change = utils.string_to_boolean_map(allow_tyre_change) or False
-            stage.allow_setup_change = utils.string_to_boolean_map(allow_setup_change) or False
-
-            set_tyre = cells[6].get_text(strip=True)
-            if not allow_tyre_change or set_tyre == "Keep previous":
-                stage.set_tyre = Tyre.Auto
+                if has_service_park and i < len(rows):
+                    next_row = rows[i]
+                    i += 1
+                    parts = next_row.get_text(strip=True).split("-", 1).pop(1).split("-")
+                    time_match = re.search(r"\d+", parts[0])
+                    stage.service_time = int(time_match.group()) if time_match else 0
+                    # service park with crew
+                    if len(parts) > 1:
+                        mech_match = re.search(r"\d+", parts[1])
+                        stage.num_mechanics = int(mech_match.group()) if mech_match else 0
+                stages.append(stage)
             else:
-                stage.set_tyre = Tyre.from_str(set_tyre)
+                i += 1
 
-            next_row = row.find_next_sibling("tr")
-            has_service_park = False
-
-            while isinstance(next_row, Tag):
-                next_classes = next_row.get("class") or []
-                if "servicepark" in next_classes:
-                    has_service_park = True
-                elif "paratlan" in next_classes or "paros" in classes:
-                    # if the next row is a stage. that mean there is no service park
-                    # for the current stage we are reading
-                    break
-                if has_service_park:
-                    break
-                next_row = next_row.find_next_sibling("tr")
-
-            if has_service_park and isinstance(next_row, Tag):
-                parts = next_row.get_text(strip=True).split("-", 1).pop(1).split("-")
-                time_match = re.search(r"\d+", parts[0])
-                mech_match = re.search(r"\d+", parts[1])
-                stage.service_time = int(time_match.group()) if time_match else 0
-                stage.num_mechanics = int(mech_match.group()) if mech_match else 0
-
-            stages.append(stage)
-
-        self.stages = stages
+        self.insert_stages_to_leg(stages)
         self.stage_count = len(stages)
+
+    def insert_stages_to_leg(self, stages: list[Stage]) -> None:
+        self.legs.clear()
+        for stage in stages:
+            at_leg = stage.start_at_leg
+            leg = self.legs.get(at_leg)
+            if leg is None:
+                self.legs = {i: [] for i in range(1, self.leg_count + 1)}
+                leg = self.legs[at_leg]
+            leg.append(stage)
+
+    def stages(self) -> list[Stage]:
+        ret: list[Stage] = []
+        for i in range(1, self.leg_count + 1):
+            stages = self.legs.get(i)
+            if stages is None:
+                # should not raise this error
+                raise LookupError
+            ret.extend(stages)
+        # TODO: should this be sorted like this?
+        return sorted(ret, key=lambda s: s.start_at_leg)
+
+    def generate_legs_start_at(self) -> list[int]:
+        ret: list[int] = []
+        if not self.stages:
+            return ret
+        stages = self.stages()
+        i = 0
+        while i < len(stages) - 1:
+            current = stages[i]
+            j = i + 1
+            while j < len(stages) and stages[j].start_at_leg == current.start_at_leg:
+                j += 1
+            if j < len(stages):
+                ret.append(j + 1)
+            i = j
+        return ret

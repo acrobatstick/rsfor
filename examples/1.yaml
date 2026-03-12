@@ -2,12 +2,13 @@ name: Rally Test
 description: Description Test
 password: testpassword
 
-damage: Realistic
+damage: realistic
 stage_count: 2
-leg_count: 2
+leg_count: 4
 pacenote_opt: 4
 roadside_service: 2
 physics_ver: 6
+super_rally: yes
 
 car_groups:
   - 10
@@ -17,31 +18,51 @@ car_groups:
   - 6969
 
 stages:
-  389:
+  - id: 389
     weather: Morning Clear Crisp
-    allow_tyre_change: true
-    allow_setup_change: true
-    set_tyre: Snow
+    allow_tyre_change: yes
+    allow_setup_change: yes
+    set_tyre: snow
     service_time: 5
     surface_wear: 2
-  564:
+    start_at_leg: 1
+  - id: 564
     weather: Morning Clear Crisp
-    allow_tyre_change: true
-    allow_setup_change: true
+    allow_tyre_change: no
+    allow_setup_change: no
     set_tyre: Gravel Dry
     service_time: 60
     surface_wear: 2
-  259:
+    start_at_leg: 2
+  - id: 259
     weather: Morning Clear Crisp
-    allow_tyre_change: true
-    allow_setup_change: true
+    allow_tyre_change: yes
+    allow_setup_change: yes
     set_tyre: Auto
-    service_time: 5 
+    service_time: 5
     surface_wear: 2
-  231:
+    start_at_leg: 2
+  - id: 231
     weather: Morning Clear Crisp
-    allow_tyre_change: true
-    allow_setup_change: true
+    allow_tyre_change: yes
+    allow_setup_change: yes
     set_tyre: Tarmac Dry
-    service_time: 5 
+    service_time: 5
     surface_wear: 2
+    start_at_leg: 3
+  - id: 231
+    weather: Morning Clear Crisp
+    allow_tyre_change: yes
+    allow_setup_change: yes
+    set_tyre: Tarmac Dry
+    service_time: 5
+    surface_wear: 2
+    start_at_leg: 3
+  - id: 231
+    weather: Morning Clear Crisp
+    allow_tyre_change: yes
+    allow_setup_change: yes
+    set_tyre: Tarmac Dry
+    service_time: 5
+    surface_wear: 2
+    start_at_leg: 4

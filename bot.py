@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     import logging
 
     from config import Config
-    from stage import Stage
 
 
 class MaxAttemptsError(Exception):
@@ -155,22 +154,31 @@ class Bot:
         self.wait_for_state()
 
     def step_legs(self) -> None:
-        step = 1
-        while step < self.config.leg_count:
+        start_at_list = self.config.generate_legs_start_at()
+        at_leg = 1
+        while at_leg < self.config.leg_count + 1:
+            # TODO: handle super rally and whatever "Leg starts at stage" is from configuration
+            if at_leg != 1:
+                start_at = start_at_list.pop(0)
+                self.logger.info("Leg %d started at stage %d", at_leg, start_at)
+                Select(self.driver.find_element(By.NAME, "start_stage_no")).select_by_value(str(start_at))
+
+            # look for superrally at the second leg. I personally don't know why
+            # they done this not on the first form step
+            if at_leg == 2 and self.config.super_rally:
+                Select(self.driver.find_element(By.NAME, "super_rally")).select_by_value("150")
+
+            # TODO: convert timezone provided in configuration to hungary timezone on last leg
             # TODO: handle leg open/close time from config
+
             time.sleep(5)
             self.click_next()
             self.wait_for_state()
-            step += 1
-
-        # TODO: handle super rally and whatever "Leg starts at stage" is from configuration
-        # TODO: handle overall leg configuration on last leg step submission
-        # TODO: convert timezone provided in configuration to hungary timezone
-        self.click_next()
+            at_leg += 1
         self.wait_for_state()
 
     def step_stages(self) -> None:
-        stages: list[Stage] = self.config.stages
+        stages = self.config.stages()
         for i in range(int(self.config.stage_count)):
             s = stages.pop(0)
             found = False
@@ -179,7 +187,9 @@ class Bot:
                 self.driver.find_element(By.CSS_SELECTOR, f"button[id='surface_filter{surface_id}']").click()
                 try:
                     stage_el = Select(self.driver.find_element(By.ID, "stage_list"))
-                    stage_el.select_by_value(str(s.stage_id))
+                    stage_el.select_by_value(str(s.id))
+                    # refetch the element since it sometimes throw a stale error wtf...
+                    stage_el = Select(self.driver.find_element(By.ID, "stage_list"))
                     stage_name = stage_el.first_selected_option.text
                     self.logger.info("Selecting %s as stage no.%d", stage_name, i + 1)
                     found = True
@@ -189,7 +199,7 @@ class Bot:
                     continue
 
             if not found:
-                self.logger.error("Could not find stage with id %d", s.stage_id)
+                self.logger.error("Could not find stage with id %d", s.id)
                 return
 
             # NOTE: ignore wetness for now. use the default selection from stage weather instead
