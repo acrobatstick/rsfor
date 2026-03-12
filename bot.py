@@ -202,11 +202,10 @@ class Bot:
                     found = True
                     break
                 except NoSuchElementException:
-                    self.logger.warning(
+                    self.logger.debug(
                         "Stages: id %d not found in surface type %d, moving to next filter", s.id, surface_id
                     )
                     continue
-
             if not found:
                 self.logger.error(
                     "Stages: Could not find stage with id %d, see stage list: https://rallysimfans.hu/rbr/stages.php",
@@ -216,13 +215,21 @@ class Bot:
 
             # NOTE: ignore wetness for now
             try:
-                Select(self.driver.find_element(By.ID, "tracksettings_list")).select_by_visible_text(s.weather)
+                sel = Select(self.driver.find_element(By.ID, "tracksettings_list"))
+                weather_words = set(s.weather.lower().split())
+                # must compare it set from both weather in the rally page and the weather list inside
+                # the stage settings. again, i dont understand the inconsistency from the developers lol.
+                option = next((o for o in sel.options if set(o.text.lower().split()) == weather_words), None)
+                if option is not None:
+                    sel.select_by_visible_text(option.text)
+                else:
+                    self.logger.warning(
+                        "Stages: Weather preset %s not found for %s, skipping weather selection (using default)",
+                        s.weather,
+                        name,
+                    )
             except NoSuchElementException:
-                self.logger.warning(
-                    "Stages: Weather preset %s not found for %s, skipping weather selection (using default)",
-                    s.weather,
-                    name,
-                )
+                self.logger.warning("tracksettings_list not found, skipping weather selection")
 
             tyre_checkbox = self.driver.find_element(By.NAME, "choose_tyre")
             if tyre_checkbox.is_selected() != s.allow_tyre_change:
