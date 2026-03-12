@@ -206,7 +206,13 @@ class Bot:
             with contextlib.suppress(NoSuchElementException):
                 Select(self.driver.find_element(By.ID, "tracksettings_list")).select_by_value(s.weather)
 
-            # NOTE: also ignore set tyre, allow setup change
+            tyre_checkbox = self.driver.find_element(By.NAME, "choose_tyre")
+            if tyre_checkbox.is_selected() != s.allow_tyre_change:
+                tyre_checkbox.click()
+
+            setup_checkbox = self.driver.find_element(By.NAME, "choose_setup")
+            if setup_checkbox.is_selected() != s.allow_setup_change:
+                setup_checkbox.click()
 
             # handle not configuring some configurations cant be applied on last leg's stage
             if i < int(self.config.stage_count) - 1:
