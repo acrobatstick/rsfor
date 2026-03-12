@@ -138,15 +138,27 @@ class Config:
             sys.exit(1)
 
     @classmethod
-    def from_path(cls, logger: logging.Logger, path: str) -> "Config":
+    def from_path(cls, logger: logging.Logger, path: str, name: str = "", password: str = "") -> "Config":
         instance = cls()  # creates with all defaults
         instance.logger = logger
+
         parsed = urlparse(path)
         instance.is_url = parsed.scheme in ("http", "https")
         if not instance.is_url:
             instance.read_from_file(path)
         else:
             instance.read_from_url(path)
+
+        # if no name arg provided, append (Copy) to avoid confusion on
+        # online rally list
+        if name:
+            instance.name = name
+        elif instance.is_url:
+            instance.name += " (Copy)"
+
+        if password:
+            instance.password = password
+
         return instance
 
     def read_from_file(self, path: str) -> None:

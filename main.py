@@ -15,11 +15,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--verbose", "-v", help="incrase output verbosity", action="store_true")
     parser.add_argument("--input", "-i", help="rally configuration file or online rally url", type=str)
+    parser.add_argument("--name", "-n", help="online rally name", type=str, default="")
+    parser.add_argument("--password", "-p", help="online rally password", type=str, default="")
+
     args = parser.parse_args()
 
     logger = get_logger(verbose=args.verbose)
     try:
-        config = Config.from_path(logger, args.input)
+        config = Config.from_path(logger=logger, path=args.input, name=args.name, password=args.password)
     except Exception:
         logger.exception("Error while reading config")
         return 1

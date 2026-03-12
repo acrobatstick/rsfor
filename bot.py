@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import sys
 import time
 from typing import TYPE_CHECKING
 
@@ -86,12 +87,15 @@ class Bot:
 
                 error_content = error_div.get_attribute("textContent")
                 if error_content is None:
-                    return
+                    self.logger.warning("Login failed")
+                    sys.exit(1)
 
                 self.logger.warning("Error: %s", error_content.strip())
+                sys.exit(1)
 
             except TimeoutException:
-                self.logger.warning("Neither login success nor error message found.")
+                self.logger.fatal("Neither login success nor error message found.")
+                sys.exit(1)
 
     def step_rally(self) -> None:
         self.driver.get("https://rallysimfans.hu/rbr/rally_online.php?centerbox=create/rally_create.php&uj=true")
