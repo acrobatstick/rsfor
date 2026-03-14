@@ -7,7 +7,6 @@ import time
 from typing import TYPE_CHECKING
 
 from selenium.common.exceptions import (
-    NoSuchElementException,
     StaleElementReferenceException,
     TimeoutException,
 )
@@ -21,7 +20,10 @@ from webdriver_manager.chrome import ChromeDriverManager
 if TYPE_CHECKING:
     import logging
 
+    from selenium.webdriver.remote.webelement import WebElement
+
     from config import Config
+    from stage import Stage
 
 
 class MaxAttemptsError(Exception):
@@ -42,15 +44,15 @@ class Bot:
 
     def run(self) -> None:
         try:
-            self.login()
-            self.step_rally()
-            self.step_cars()
-            self.step_legs()
-            self.step_stages()
+            self._login()
+            self._step_rally()
+            self._step_cars()
+            self._step_legs()
+            self._step_stages()
         finally:
             self.driver.quit()
 
-    def login(self) -> None:
+    def _login(self) -> None:
         username = os.getenv("RSF_USERNAME")
         password = os.getenv("RSF_PASSWORD")
 
@@ -97,9 +99,9 @@ class Bot:
                 self.logger.fatal("Neither login success nor error message found.")
                 sys.exit(1)
 
-    def step_rally(self) -> None:
+    def _step_rally(self) -> None:
         self.driver.get("https://rallysimfans.hu/rbr/rally_online.php?centerbox=create/rally_create.php&uj=true")
-        self.wait_for_state()
+        self._wait_for_state()
 
         time.sleep(2)
 
@@ -131,38 +133,41 @@ class Bot:
             By.CSS_SELECTOR,
             f"button[name='physics_ver'][value='{self.config.physics_ver}']",
         ).click()
-        self.wait_for_state()
+        self._wait_for_state()
 
-    def step_cars(self) -> None:
-        for car_id in self.config.car_groups:
-            try:
-                option = self.driver.find_element(By.CSS_SELECTOR, f"select[name='group_id'] option[value='{car_id}']")
-            except NoSuchElementException:
-                # If group id not found. it may be a car id. select the car list check
+    def _find_car_option(self, cid: str) -> WebElement | None:
+        options = self.driver.find_elements(By.CSS_SELECTOR, "select[name='group_id'] option")
+        return next((o for o in options if o.get_attribute("value") == cid or o.text.strip() == cid), None)
+
+    def _step_cars(self) -> None:
+        for cid in self.config.car_groups:
+            option = self._find_car_option(cid)
+
+            if option is None:
                 car_list_checkbox = self.driver.find_element(By.ID, "carlistCheck")
+                # if the first car id is nowhere to be found, expand the car options
                 if not car_list_checkbox.is_selected():
                     car_list_checkbox.click()
-            try:
-                # Redo selection
-                option = self.driver.find_element(By.CSS_SELECTOR, f"select[name='group_id'] option[value='{car_id}']")
-            except NoSuchElementException:
-                # if the car id provided is not an id, look for the option textContent instead
-                options = self.driver.find_elements(By.CSS_SELECTOR, "select[name='group_id'] option")
-                option = next((o for o in options if o.text.strip() == car_id), None)
-                if option is None:
-                    self.logger.warning("Car Groups: ID %s not found, skipping...", car_id)
-                    continue
+                # redo the search again
+                option = self._find_car_option(cid)
 
-            self.logger.info("Car Groups: %s selected", car_id)
+            if option is None:
+                self.logger.error(
+                    "Car Groups: ID %r not found, see https://github.com/acrobatstick/rsfor/tree/main?tab=readme-ov-file#groupcar-ids",
+                    cid,
+                )
+                sys.exit(1)
+
+            self.logger.info("Car Groups: %s selected", cid)
             option.click()
             self.driver.find_element(By.CSS_SELECTOR, "input[type='button'][value='-->>']").click()
 
         time.sleep(2)
 
-        self.click_next()
-        self.wait_for_state()
+        self._click_next()
+        self._wait_for_state()
 
-    def step_legs(self) -> None:
+    def _step_legs(self) -> None:
         start_at_list = self.config.generate_legs_start_at()
         at_leg = 1
         while at_leg < self.config.leg_count + 1:
@@ -181,59 +186,48 @@ class Bot:
             # TODO: handle leg open/close time from config
 
             time.sleep(5)
-            self.click_next()
-            self.wait_for_state()
+            self._click_next()
+            self._wait_for_state()
             at_leg += 1
-        self.wait_for_state()
+        self._wait_for_state()
 
-    def step_stages(self) -> None:
+    def _select_stage(self, s: Stage, i: int) -> str:
+        for surface_id in range(1, 4):
+            # change stage surface filter to update the stage list
+            self.driver.find_element(By.CSS_SELECTOR, f"button[id='surface_filter{surface_id}']").click()
+            stage_el = Select(self.driver.find_element(By.ID, "stage_list"))
+            time.sleep(0.5)
+            option = next((o for o in stage_el.options if o.get_attribute("value") == str(s.id)), None)
+            if option is not None:
+                stage_el.select_by_value(str(s.id))
+                time.sleep(0.5)
+                name = Select(self.driver.find_element(By.ID, "stage_list")).first_selected_option.text
+                self.logger.info("Stages(%d): %s selected", i + 1, name)
+                return name
+            self.logger.debug("Stages: id %d not found in surface type %d, moving to next filter", s.id, surface_id)
+
+        self.logger.error("Stages: Could not find stage with id %d, see https://rallysimfans.hu/rbr/stages.php", s.id)
+        sys.exit(1)
+
+    def _step_stages(self) -> None:
         stages = self.config.stages()
         for i in range(int(self.config.stage_count)):
             s = stages.pop(0)
-            name = ""
-            found = False
-            for surface_id in range(1, 4):
-                try:
-                    # change stage surface filter to update the stage list
-                    self.driver.find_element(By.CSS_SELECTOR, f"button[id='surface_filter{surface_id}']").click()
-                    stage_el = Select(self.driver.find_element(By.ID, "stage_list"))
-                    stage_el.select_by_value(str(s.id))
-                    # wait for DOM to settle after selection
-                    time.sleep(0.5)
-                    stage_el = Select(self.driver.find_element(By.ID, "stage_list"))
-                    name = stage_el.first_selected_option.text
-                    self.logger.info("Stages: Selecting %s as stage no.%d", name, i + 1)
-                    found = True
-                    break
-                except NoSuchElementException:
-                    self.logger.debug(
-                        "Stages: id %d not found in surface type %d, moving to next filter", s.id, surface_id
-                    )
-                    continue
-            if not found:
-                self.logger.error(
-                    "Stages: Could not find stage with id %d, see stage list: https://rallysimfans.hu/rbr/stages.php",
-                    s.id,
-                )
-                return
-
+            name = self._select_stage(s, i)
             # NOTE: ignore wetness for now
-            try:
-                sel = Select(self.driver.find_element(By.ID, "tracksettings_list"))
-                weather_words = set(s.weather.lower().split())
-                # must compare it set from both weather in the rally page and the weather list inside
-                # the stage settings. again, i dont understand the inconsistency from the developers lol.
-                option = next((o for o in sel.options if set(o.text.lower().split()) == weather_words), None)
-                if option is not None:
-                    sel.select_by_visible_text(option.text)
-                else:
-                    self.logger.warning(
-                        "Stages: Weather preset %s not found for %s, skipping weather selection (using default)",
-                        s.weather,
-                        name,
-                    )
-            except NoSuchElementException:
-                self.logger.warning("tracksettings_list not found, skipping weather selection")
+            sel = Select(self.driver.find_element(By.ID, "tracksettings_list"))
+            weather_words = set(s.weather.lower().split())
+            # must compare it set from both weather in the rally page and the weather list inside
+            # the stage settings. again, i dont understand the inconsistency from the developers lol.
+            option = next((o for o in sel.options if set(o.text.lower().split()) == weather_words), None)
+            if option is not None:
+                sel.select_by_visible_text(option.text)
+            else:
+                self.logger.warning(
+                    "Stages: Weather preset %r not found for %s, skipping weather selection (using default)",
+                    s.weather,
+                    name,
+                )
 
             tyre_checkbox = self.driver.find_element(By.NAME, "choose_tyre")
             if tyre_checkbox.is_selected() != s.allow_tyre_change:
@@ -247,18 +241,17 @@ class Bot:
             if i < int(self.config.stage_count) - 1:
                 # surface wear
                 self.driver.find_element(By.CSS_SELECTOR, f"input[id='surface{s.surface_wear.value}']").click()
-
                 Select(self.driver.find_element(By.ID, "service_time")).select_by_value(str(s.service_time))
 
             # to prevent flooding the online rally list. remove this if the program is fully working
             if i < int(self.config.stage_count) - 1:
                 time.sleep(5)
-                self.click_next()
-                self.wait_for_state()
+                self._click_next()
+                self._wait_for_state()
 
         time.sleep(10)
 
-    def click_next(self) -> None:
+    def _click_next(self) -> None:
         attempts = 0
         max_attemps = 3
         while attempts < max_attemps:
@@ -270,7 +263,7 @@ class Bot:
         msg = "click next"
         raise MaxAttemptsError(msg)
 
-    def wait_for_state(self) -> str | None:
+    def _wait_for_state(self) -> str | None:
         attempts = 0
         max_attempts = 3
         while attempts < max_attempts:

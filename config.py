@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 import requests
 import yaml
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, ResultSet, Tag
 
 import utils
 from stage import Stage, Tyre
@@ -148,9 +148,9 @@ class Config:
         parsed = urlparse(path)
         instance.is_url = parsed.scheme in ("http", "https")
         if not instance.is_url:
-            instance.read_from_file(path)
+            instance._read_from_file(path)
         else:
-            instance.read_from_url(path)
+            instance._read_from_url(path)
 
         # if no name arg provided, append (Copy) to avoid confusion on
         # online rally list
@@ -164,7 +164,7 @@ class Config:
 
         return instance
 
-    def read_from_file(self, path: str) -> None:
+    def _read_from_file(self, path: str) -> None:
         with Path(path).open("r") as f:
             data = yaml.safe_load(f)
 
@@ -196,7 +196,7 @@ class Config:
         if len(stages) != self.stage_count:
             self.stage_count = len(stages)
 
-        self.insert_stages_to_leg(stages)
+        self._insert_stages_to_leg(stages)
 
         for i in range(1, self.leg_count + 1):
             stages = self.legs.get(i)
@@ -209,9 +209,13 @@ class Config:
 
         self.__post_init__()  # re-run validation after loading
 
-    def read_from_url(self, path: str) -> None:
+    def _read_from_url(self, path: str) -> None:
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5",
             "Connection": "keep-alive",
@@ -252,14 +256,37 @@ class Config:
         table2 = tables[1] if len(tables) > 1 else None
 
         if isinstance(table1, Tag):
-            self.scrape_table1(table1)
+            self._scrape_table1(table1)
 
         if isinstance(table2, Tag):
-            self.scrape_table2(table2)
+            self._scrape_table2(table2)
 
         self.__post_init__()  # re-run validation after loading
 
-    def scrape_table1(self, table: Tag) -> None:
+    def _set_from_map(self, data: list) -> None:
+        for cells in data:
+            if len(cells) != 2:
+                continue
+            key, value = cells
+            value = value.strip()
+            mapped = KEY_MAP.get(key.strip())
+            if not mapped or not hasattr(self, mapped):
+                continue
+            match mapped:
+                case "leg_count":
+                    setattr(self, mapped, int(value))
+                case "super_rally":
+                    setattr(self, mapped, utils.string_to_boolean_map(value) or True)
+                case "car_groups":
+                    setattr(self, mapped, [c.strip() for c in value.split(",")])
+                case "damage":
+                    setattr(self, mapped, Damage.from_str(value))
+                case "pacenote_opt":
+                    setattr(self, mapped, PacenoteStyle.from_str(value))
+                case _:
+                    setattr(self, mapped, value)
+
+    def _scrape_table1(self, table: Tag) -> None:
         data = []
         rows = table.find_all("tr")
         for row in rows:
@@ -267,39 +294,67 @@ class Config:
                 cells = row.get_text(separator=" ", strip=True).split(":", 1)
                 data.append(cells)
 
-        car_groups_at = -1
-
         self.name = data.pop(0)[0]
+        self._set_from_map(data)
 
-        for idx, cells in enumerate(data):
-            if len(cells) == 2:
-                key, value = cells
-                value = value.strip()
-                mapped = KEY_MAP.get(key.strip())
-                if mapped and hasattr(self, mapped):
-                    match mapped:
-                        case "leg_count":
-                            setattr(self, mapped, int(value))
-                        case "super_rally":
-                            setattr(self, mapped, utils.string_to_boolean_map(value) or True)
-                        case "car_groups":
-                            setattr(self, mapped, [c.strip() for c in value.split(",")])
-                            car_groups_at = idx
-                        case "damage":
-                            setattr(self, mapped, Damage.from_str(value))
-                        case "pacenote_opt":
-                            setattr(self, mapped, PacenoteStyle.from_str(value))
-                        case _:
-                            setattr(self, mapped, value)
-
-        if car_groups_at != -1:
-            # TODO: set the schedule of each leg
-            data = data[car_groups_at + 1 :]
-        else:
-            self.logger.error("Could not find car group element")
+    def _parse_stageid_from_tip(self, div: object) -> int:
+        if not isinstance(div, Tag):
+            self.logger.error("Could not get stage information from stage list, maybe using alias?")
             sys.exit(1)
+        onmouseover = str(div.get("onmouseover", ""))
+        match = re.search(r"ID:\s*(\d+)", unescape(onmouseover))
+        if not match:
+            self.logger.fatal("Could not get stage id from stage tip element")
+            sys.exit(1)
+        return int(match.group(1))
 
-    def scrape_table2(self, table: Tag) -> None:
+    def _parse_stage_row(self, stage: Stage, cells: ResultSet) -> None:
+        stage.weather = cells[4].get_text()
+        allow_tyre_change, allow_setup_change = cells[5].get_text().split(" / ")
+        stage.allow_tyre_change = utils.string_to_boolean_map(allow_tyre_change) or False
+        stage.allow_setup_change = utils.string_to_boolean_map(allow_setup_change) or False
+        set_tyre = cells[6].get_text(strip=True)
+
+        if not allow_tyre_change or set_tyre == "Keep previous":
+            stage.set_tyre = Tyre.Auto
+        else:
+            stage.set_tyre = Tyre.from_str(set_tyre)
+
+    def _scan_next_rows(self, rows: ResultSet, i: int) -> tuple[bool, int, int]:
+        """Scan ahead to check for service park and leg boundaries."""
+        has_service_park = False
+        leg_increment = 0
+        while i < len(rows):
+            next_row = rows[i]
+            if not isinstance(next_row, Tag):
+                self.logger.fatal("next_row is not an html element")
+                sys.exit(1)
+            next_classes = next_row.get("class") or []
+            if "servicepark" in next_classes:
+                has_service_park = True
+            elif "paratlan" in next_classes or "paros" in next_classes:
+                break
+            elif not next_classes:
+                # no class means it's a leg boundary with form of <tr>
+                leg_increment += 1
+            if has_service_park:
+                break
+            i += 1
+        return has_service_park, leg_increment, i
+
+    def _parse_service_park(self, stage: Stage, row: object) -> None:
+        if not isinstance(row, Tag):
+            self.logger.fatal("service park row is not a Tag element")
+            sys.exit(1)
+        parts = row.get_text(strip=True).split("-", 1).pop(1).split("-")
+        time_match = re.search(r"\d+", parts[0])
+        stage.service_time = int(time_match.group()) if time_match else 0
+        # service park with crew
+        if len(parts) > 1:
+            mech_match = re.search(r"\d+", parts[1])
+            stage.num_mechanics = int(mech_match.group()) if mech_match else 0
+
+    def _scrape_table2(self, table: Tag) -> None:
         rows = table.find_all("tr")
         stages = []
         leg = 1
@@ -311,71 +366,33 @@ class Config:
                 continue
 
             classes = row.get("class") or []
-
             if "paratlan" in classes or "paros" in classes:
                 cells = row.find_all("td", recursive=False)
                 if len(cells) != 7:
                     sys.exit("not a valid stage row details")
-                div = row.find("div", onmouseover=True)
-                if not isinstance(div, Tag):
-                    self.logger.error("Could not get stage information from stage list, maybe using alias?")
-                    sys.exit(1)
-                onmouseover = str(div.get("onmouseover", ""))
-                match = re.search(r"ID:\s*(\d+)", unescape(onmouseover))
-                if not match:
-                    self.logger.fatal("Could not get stage id from stage tip element")
-                    sys.exit(1)
+                stage_id = self._parse_stageid_from_tip(div=row.find("div", onmouseover=True))
+                stage = Stage(id=stage_id, start_at_leg=leg)
+                self._parse_stage_row(stage, cells)
 
-                stage_id = int(match.group(1))
-                stage = Stage(id=stage_id, start_at_leg=1)
-                stage.weather = cells[4].get_text()
-                allow_tyre_change, allow_setup_change = cells[5].get_text().split(" / ")
-                stage.allow_tyre_change = utils.string_to_boolean_map(allow_tyre_change) or False
-                stage.allow_setup_change = utils.string_to_boolean_map(allow_setup_change) or False
-                stage.start_at_leg = leg
-                set_tyre = cells[6].get_text(strip=True)
-
-                if not allow_tyre_change or set_tyre == "Keep previous":
-                    stage.set_tyre = Tyre.Auto
-                else:
-                    stage.set_tyre = Tyre.from_str(set_tyre)
-                has_service_park = False
-
-                while i < len(rows):
-                    next_row = rows[i]
-                    if not isinstance(next_row, Tag):
-                        self.logger.fatal("next_row is not an html element")
-                        sys.exit(1)
-
-                    next_classes = next_row.get("class") or []
-                    if "servicepark" in next_classes:
-                        has_service_park = True
-                    elif "paratlan" in next_classes or "paros" in next_classes:
-                        break
-                    elif not next_classes:
-                        leg += 1
-                    if has_service_park:
-                        break
-                    i += 1
+                has_service_park, leg_increment, i = self._scan_next_rows(rows, i)
+                # update current leg position if we reach leg boundaries while scanning rows
+                leg += leg_increment
 
                 if has_service_park and i < len(rows):
+                    # take the row by the new index from reading inside self._scan_next_rows
                     next_row = rows[i]
                     i += 1
-                    parts = next_row.get_text(strip=True).split("-", 1).pop(1).split("-")
-                    time_match = re.search(r"\d+", parts[0])
-                    stage.service_time = int(time_match.group()) if time_match else 0
-                    # service park with crew
-                    if len(parts) > 1:
-                        mech_match = re.search(r"\d+", parts[1])
-                        stage.num_mechanics = int(mech_match.group()) if mech_match else 0
+                    if not isinstance(next_row, Tag):
+                        self._parse_service_park(stage, next_row)
+
                 stages.append(stage)
             else:
                 i += 1
 
-        self.insert_stages_to_leg(stages)
+        self._insert_stages_to_leg(stages)
         self.stage_count = len(stages)
 
-    def insert_stages_to_leg(self, stages: list[Stage]) -> None:
+    def _insert_stages_to_leg(self, stages: list[Stage]) -> None:
         self.legs.clear()
         for stage in stages:
             at_leg = stage.start_at_leg
