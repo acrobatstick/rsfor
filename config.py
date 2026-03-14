@@ -1,10 +1,11 @@
 import logging
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from enum import Enum
 from html import unescape
-from typing import ClassVar
+from pathlib import Path
+from typing import ClassVar, TypeAlias
 from urllib.parse import urlparse
 
 import requests
@@ -23,6 +24,8 @@ KEY_MAP = {
     "Pacenotes options": "pacenote_opt",
     "Car Groups": "car_groups",
 }
+
+SerializedType: TypeAlias = None | str | int | float | bool | dict[str, "SerializedType"] | list["SerializedType"]
 
 
 class Damage(Enum):
@@ -162,7 +165,7 @@ class Config:
         return instance
 
     def read_from_file(self, path: str) -> None:
-        with open(path) as f:
+        with Path(path).open("r") as f:
             data = yaml.safe_load(f)
 
         self.name = str(data.get("name", self.name))
@@ -408,3 +411,69 @@ class Config:
                 ret.append(j + 1)
             i = j
         return ret
+
+    def dump(self) -> None:
+        def serialize(obj: object) -> SerializedType:  # pyright: ignore[reportAny]
+            if isinstance(obj, logging.Logger):
+                return None
+            if isinstance(obj, Enum):
+                return obj.name  # or obj.value
+            if isinstance(obj, dict):
+                return {k: serialize(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [serialize(i) for i in obj]
+            if hasattr(obj, "__dataclass_fields__"):
+                return {k: serialize(v) for k, v in asdict(obj).items()}  # type: ignore[arg-type]
+            return obj  # type: ignore[arg-type]
+
+        stage_field_order = [
+            "id",
+            "weather",
+            "allow_tyre_change",
+            "allow_setup_change",
+            "set_tyre",
+            "service_time",
+            "surface_wear",
+            "start_at_leg",
+        ]
+        # flatten stages on legs property into 1 big list instead
+        stages = []
+        for leg_num, stage_list in self.legs.items():
+            for stage in stage_list:
+                s = {f.name: serialize(getattr(stage, f.name)) for f in fields(stage)}
+                s["start_at_leg"] = leg_num
+                ordered = {k: s[k] for k in stage_field_order if k in s}
+                ordered.update({k: v for k, v in s.items() if k not in stage_field_order})
+                stages.append(ordered)
+
+        all_data = {
+            f.name: serialize(getattr(self, f.name))
+            for f in fields(self)
+            if not isinstance(getattr(self, f.name), logging.Logger) and f.name != "legs"  # exclude legs
+        }
+        all_data["stages"] = stages
+
+        top_lvl_order = [
+            "name",
+            "description",
+            "damage",
+            "stage_count",
+            "leg_count",
+            "pacenote_opt",
+            "roadside_service",
+            "password",
+            "physics_ver",
+            "car_groups",
+            "is_url",
+            "super_rally",
+            "stages",
+        ]
+
+        data = {k: all_data[k] for k in top_lvl_order if k in all_data}
+        data.update({k: v for k, v in all_data.items() if k not in top_lvl_order})
+
+        path = Path(f"./dumps/{self.name}.yaml")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w") as f:
+            yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            self.logger.info("Rally configuration dumped at %s", path)

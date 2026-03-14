@@ -17,6 +17,16 @@ def main() -> int:
     parser.add_argument("--input", "-i", help="rally configuration file or online rally url", type=str)
     parser.add_argument("--name", "-n", help="online rally name", type=str, default="")
     parser.add_argument("--password", "-p", help="online rally password", type=str, default="")
+    parser.add_argument("--dump", help="dump online rally into a yaml file", action="store_true")
+    parser.add_argument("--preview", help="preview parsed rally config without running the bot", action="store_true")
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    run_parser = subparsers.add_parser("run", help="run the bot")
+    run_parser.add_argument("--dump", help="dump online rally config to yaml after running", action="store_true")
+
+    subparsers.add_parser("preview", help="preview the rally config")
+    subparsers.add_parser("dump", help="dump config file to yaml")
 
     args = parser.parse_args()
 
@@ -27,8 +37,17 @@ def main() -> int:
         logger.exception("Error while reading config")
         return 1
 
-    bot = Bot(logger, config)
-    bot.run()
+    match args.command:
+        case "run":
+            bot = Bot(logger, config)
+            bot.run()
+            if args.dump:
+                config.dump()
+        case "preview":
+            print(config)  # noqa: T201
+        case "dump":
+            config.dump()
+
     return 0
 
 
