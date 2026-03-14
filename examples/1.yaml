@@ -15,7 +15,6 @@ car_groups:
   - 108
   - 125
   - 113
-  - 6969
 
 stages:
   - id: 389
@@ -24,45 +23,51 @@ stages:
     allow_setup_change: yes
     set_tyre: snow
     service_time: 5
-    surface_wear: 2
+    surface_wear: worn
     start_at_leg: 1
+
   - id: 564
     weather: Morning Clear Crisp
     allow_tyre_change: no
     allow_setup_change: no
-    set_tyre: Gravel Dry
+    set_tyre: keep
     service_time: 60
-    surface_wear: 2
-    start_at_leg: 2
+    surface_wear: auto
+    start_at_leg: 2 
+
   - id: 259
     weather: Morning Clear Crisp
     allow_tyre_change: yes
     allow_setup_change: yes
     set_tyre: Auto
     service_time: 5
-    surface_wear: 2
+    surface_wear: auto
     start_at_leg: 2
+
   - id: 231
     weather: Morning Clear Crisp
     allow_tyre_change: yes
     allow_setup_change: yes
     set_tyre: Tarmac Dry
     service_time: 5
-    surface_wear: 2
+    surface_wear: auto
     start_at_leg: 3
+
   - id: 231
     weather: Morning Clear Crisp
     allow_tyre_change: yes
     allow_setup_change: yes
     set_tyre: Tarmac Dry
     service_time: 5
-    surface_wear: 2
+    surface_wear: new
     start_at_leg: 3
+
   - id: 231
     weather: Morning Clear Crisp
     allow_tyre_change: yes
     allow_setup_change: yes
     set_tyre: Tarmac Dry
     service_time: 5
-    surface_wear: 2
+    wetness: wet
+    surface_wear: worn
     start_at_leg: 4

@@ -17,6 +17,8 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import Select, WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
+from stage import Surface, Tyre, Wetness
+
 if TYPE_CHECKING:
     import logging
 
@@ -35,7 +37,6 @@ class MaxAttemptsError(Exception):
 
 
 class Bot:
-    # TODO: add external configuration of the online rally TODO: run selenium on headless mode
     def __init__(self, logger: logging.Logger, config: Config) -> None:
         service = Service(ChromeDriverManager().install())
         self.logger = logger
@@ -110,7 +111,6 @@ class Bot:
         self.driver.find_element(By.NAME, "rally_name").send_keys(self.config.name)
         self.driver.find_element(By.NAME, "description").send_keys(self.config.description)
 
-        # TODO: should prompt if arg password is passed
         self.driver.find_element(By.NAME, "password1").send_keys(self.config.password)
         self.driver.find_element(By.NAME, "password2").send_keys(self.config.password)
 
@@ -171,7 +171,6 @@ class Bot:
         start_at_list = self.config.generate_legs_start_at()
         at_leg = 1
         while at_leg < self.config.leg_count + 1:
-            # TODO: handle super rally and whatever "Leg starts at stage" is from configuration
             if at_leg != 1:
                 start_at = start_at_list.pop(0)
                 self.logger.info("Legs: Leg %d started at stage %d", at_leg, start_at)
@@ -209,25 +208,37 @@ class Bot:
         self.logger.error("Stages: Could not find stage with id %d, see https://rallysimfans.hu/rbr/stages.php", s.id)
         sys.exit(1)
 
+    def _select_weather_settings(self, s: Stage) -> None:
+        sel = Select(self.driver.find_element(By.ID, "tracksettings_list"))
+        weather_words = set(s.weather.lower().split())
+        # must compare it set from both weather in the rally page and the weather list inside
+        # the stage settings. again, i dont understand the inconsistency from the developers lol.
+        option = next((o for o in sel.options if set(o.text.lower().split()) == weather_words), None)
+        if option is not None:
+            sel.select_by_visible_text(option.text)
+        else:
+            self.logger.warning(
+                "Stages: Weather preset %r not found, skipping weather selection (using default)",
+                s.weather,
+            )
+
+    def _select_wetness(self, s: Stage) -> None:
+        if s.wetness != Wetness.Auto:
+            sel = Select(self.driver.find_element(By.NAME, "wetness_id"))
+            option = next((o for o in sel.options if o.get_attribute("value") == str(s.wetness.value)), None)
+            if option is not None:
+                sel.select_by_value(str(s.wetness.value))
+            else:
+                self.logger.warning("Stages: Wetness %r not found, skipping...", s.wetness)
+
     def _step_stages(self) -> None:
         stages = self.config.stages()
         for i in range(int(self.config.stage_count)):
             s = stages.pop(0)
-            name = self._select_stage(s, i)
-            # NOTE: ignore wetness for now
-            sel = Select(self.driver.find_element(By.ID, "tracksettings_list"))
-            weather_words = set(s.weather.lower().split())
-            # must compare it set from both weather in the rally page and the weather list inside
-            # the stage settings. again, i dont understand the inconsistency from the developers lol.
-            option = next((o for o in sel.options if set(o.text.lower().split()) == weather_words), None)
-            if option is not None:
-                sel.select_by_visible_text(option.text)
-            else:
-                self.logger.warning(
-                    "Stages: Weather preset %r not found for %s, skipping weather selection (using default)",
-                    s.weather,
-                    name,
-                )
+
+            self._select_stage(s, i)
+            self._select_weather_settings(s)
+            self._select_wetness(s)
 
             tyre_checkbox = self.driver.find_element(By.NAME, "choose_tyre")
             if tyre_checkbox.is_selected() != s.allow_tyre_change:
@@ -237,10 +248,19 @@ class Bot:
             if setup_checkbox.is_selected() != s.allow_setup_change:
                 setup_checkbox.click()
 
+            if s.set_tyre != Tyre.Auto:
+                tyre_select = Select(self.driver.find_element(By.NAME, "def_tyre_id"))
+                default = tyre_select.first_selected_option.text
+                if i + 1 in self.config.generate_legs_start_at() and s.set_tyre == Tyre.Keep_Previous:
+                    self.logger.warning("Could not keep previous tyre in new leg, using default: %r", default)
+                else:
+                    tyre_select.select_by_value(str(s.set_tyre.value))
+
             # handle not configuring some configurations cant be applied on last leg's stage
             if i < int(self.config.stage_count) - 1:
                 # surface wear
-                self.driver.find_element(By.CSS_SELECTOR, f"input[id='surface{s.surface_wear.value}']").click()
+                if s.surface_wear != Surface.Auto:
+                    self.driver.find_element(By.CSS_SELECTOR, f"input[id='surface{s.surface_wear.value}']").click()
                 Select(self.driver.find_element(By.ID, "service_time")).select_by_value(str(s.service_time))
 
             # to prevent flooding the online rally list. remove this if the program is fully working

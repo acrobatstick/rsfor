@@ -18,6 +18,7 @@ class Tyre(Enum):
     Gravel_Intermediate = 4
     Gravel_Wet = 5
     Snow = 6
+    Keep_Previous = "NULL"
 
     @staticmethod
     def from_str(value: str) -> "Tyre":
@@ -39,12 +40,15 @@ class Tyre(Enum):
                 result = Tyre.Gravel_Wet
             case "snow" | "6":
                 result = Tyre.Snow
+            case "keep previous" | "keep" | "7":
+                result = Tyre.Keep_Previous
             case _:
                 raise UnknownValueError(prop="Tyre", value=value)
         return result
 
 
 class Surface(Enum):
+    Auto = -1
     New = 1
     Normal = 2
     Worn = 3
@@ -59,8 +63,32 @@ class Surface(Enum):
                 return Surface.Normal
             case "worn" | "3":
                 return Surface.Worn
+            case "auto":
+                return Surface.Auto
             case _:
                 raise UnknownValueError(prop="Surface", value=value)
+
+
+class Wetness(Enum):
+    Auto = -1
+    Dry = 1
+    Damp = 2
+    Wet = 3
+
+    @classmethod
+    def from_str(cls, value: str) -> "Wetness":
+        value = value.lower()
+        match value:
+            case "dry" | "1":
+                return Wetness.Dry
+            case "damp" | "2":
+                return Wetness.Damp
+            case "wet" | "3":
+                return Wetness.Wet
+            case "auto":
+                return Wetness.Auto
+            case _:
+                raise UnknownValueError(prop="Wetness", value=value)
 
 
 class MechanicSkill(Enum):
@@ -85,12 +113,12 @@ class Stage:
     allow_tyre_change: bool = True
     allow_setup_change: bool = True
     set_tyre: Tyre = Tyre.Auto
-    mechanic_skill = MechanicSkill.Skilled
-    surface_wear: Surface = Surface.Normal
+    mechanic_skill: MechanicSkill = MechanicSkill.Skilled
+    wetness: Wetness = Wetness.Auto
+    surface_wear: Surface = Surface.Auto
     service_time: int = 5
     num_mechanics: int = 2
     start_at_leg: int = -1
-    max_leg: int = 6
 
     def __post_init__(self) -> None:
         if not min_service_time <= self.service_time <= max_service_time:
@@ -105,12 +133,10 @@ class Stage:
             self.set_tyre = Tyre.from_str(str(self.set_tyre))
         if isinstance(self.mechanic_skill, (str, int)):
             self.mechanic_skill = MechanicSkill.from_str(str(self.mechanic_skill))
+        if isinstance(self.wetness, (str, int)):
+            self.wetness = Wetness.from_str(str(self.wetness))
         if isinstance(self.surface_wear, (str, int)):
             self.surface_wear = Surface.from_str(str(self.surface_wear))
-        if self.start_at_leg not in range(1, self.max_leg + 1):
-            sys.exit(
-                f"Stage({self.id}): start_at_leg must be in range of 1 <= n <= {self.max_leg}, got={self.start_at_leg}"
-            )
 
     def __str__(self) -> str:
         return (
@@ -120,5 +146,7 @@ class Stage:
             f"  setup change   : {self.allow_setup_change}\n"
             f"  set tyre       : {self.set_tyre}\n"
             f"  service time   : {self.service_time} min\n"
-            f"  start_at_leg   : {self.start_at_leg}"
+            f"  start_at_leg   : {self.start_at_leg}\n"
+            f"  wetness        : {self.wetness}\n"
+            f"  surface_wear   : {self.surface_wear}\n"
         )

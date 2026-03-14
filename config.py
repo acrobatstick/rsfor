@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass, field, fields
 from enum import Enum
 from html import unescape
 from pathlib import Path
-from typing import ClassVar, TypeAlias
+from typing import ClassVar, TypeAlias, cast
 from urllib.parse import urlparse
 
 import requests
@@ -13,7 +13,7 @@ import yaml
 from bs4 import BeautifulSoup, ResultSet, Tag
 
 import utils
-from stage import Stage, Tyre
+from stage import Stage, Surface, Tyre, Wetness
 
 KEY_MAP = {
     "Description": "description",
@@ -183,8 +183,7 @@ class Config:
         stages = [
             Stage(
                 id=stage["id"],
-                max_leg=self.leg_count,
-                **{k: v for k, v in stage.items() if k != "id"},
+                **{k: v for k, v in stage.items() if k != "id" and k},
             )
             for stage in data.get("stages", [])
         ]
@@ -308,17 +307,20 @@ class Config:
             sys.exit(1)
         return int(match.group(1))
 
-    def _parse_stage_row(self, stage: Stage, cells: ResultSet) -> None:
+    def _parse_stage_row(self, stage: Stage, cells: ResultSet[Tag]) -> None:
+        surface_parts = cells[3].get_text().split(" ")
+        if len(surface_parts) != 2:
+            msg = f"invalid surface_parts: {surface_parts}"
+            raise ValueError(msg)
+
+        stage.wetness = Wetness.from_str(surface_parts[0])
+        stage.surface_wear = Surface.from_str(surface_parts[1].strip("()"))
+
         stage.weather = cells[4].get_text()
         allow_tyre_change, allow_setup_change = cells[5].get_text().split(" / ")
         stage.allow_tyre_change = utils.string_to_boolean_map(allow_tyre_change) or False
         stage.allow_setup_change = utils.string_to_boolean_map(allow_setup_change) or False
-        set_tyre = cells[6].get_text(strip=True)
-
-        if not allow_tyre_change or set_tyre == "Keep previous":
-            stage.set_tyre = Tyre.Auto
-        else:
-            stage.set_tyre = Tyre.from_str(set_tyre)
+        stage.set_tyre = Tyre.from_str(cells[6].get_text(strip=True))
 
     def _scan_next_rows(self, rows: ResultSet, i: int) -> tuple[bool, int, int]:
         """Scan ahead to check for service park and leg boundaries."""
@@ -368,8 +370,15 @@ class Config:
             classes = row.get("class") or []
             if "paratlan" in classes or "paros" in classes:
                 cells = row.find_all("td", recursive=False)
+                if not all(isinstance(c, Tag) for c in cells):
+                    self.logger.error("not a valid stage html element")
+                    sys.exit(1)
+
                 if len(cells) != 7:
                     sys.exit("not a valid stage row details")
+
+                cells = cast("ResultSet[Tag]", cells)
+
                 stage_id = self._parse_stageid_from_tip(div=row.find("div", onmouseover=True))
                 stage = Stage(id=stage_id, start_at_leg=leg)
                 self._parse_stage_row(stage, cells)
