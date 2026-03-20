@@ -1,34 +1,46 @@
 # rsfor
 
-rsfor is a tool for lazy folk like me to automate RallySimFans online rally creation.
+rsfor is a tool for creating online rallies on [RallySimFans](https://rallysimfans.hu).
+
+## Pre-requisites
+
+To ensure the program is running as exactly as it is. You need to install:
+
+- Python 3.4+
+- Google Chrome
+
+### Installation
+
+If you don't have git installed you can first download the source code
+[right here](https://github.com/acrobatstick/rsfor/archive/refs/heads/main.zip).
+After everything is set, you can go inside the source code folder and do:
+
+```bash
+pip install .
+```
 
 ## Usage
 
-Make sure you already have Python version v3.4 above installed on your machine.
-Install the required dependencies first before running the program by:
-
 ```bash
-pip install -r ./requirements.txt
+# Create online rally based on the existing rally
+rsfor -i <LINK TO ONLINE RALLY> run --dump
+
+# Create online rally with your own configuration by providing flag -i with
+# your configuration file path. see /examples for configuration example
+rsfor -i ./examples/1.yaml run
+
+# Preview configuration before creating them
+rsfor -i ./examples/1.yaml preview
+
+# Dumps configuration to a yaml file that can be reused anytime
+rsfor -i <LINK TO ONLINE RALLY> dump
 ```
 
-And run the program by doing:
-
-```bash
-python main.py
-```
-
-> [!WARNING]
-> Make sure you have installed Google Chrome on your machine with expected
-> default path of:
-
-| OS                      | Expected Location of Chrome                                                                 |
-|--------------------------|--------------------------------------------------------------------------------------------|
-| Linux                    | /usr/bin/google-chrome1                                                                    |
-| Windows Vista and newer  | C:\Users%USERNAME%\AppData\Local\Google\Chrome\Application\chrome.exe                      |
-| Mac                      | /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome                             |
-| Windows XP               | %HOMEPATH%\Local Settings\Application Data\Google\Chrome\Application\chrome.exe            |
+For detailed usage, you can use `rsfor --help`.
 
 ## Configurations
+
+You can refer to this tables if you want to create your own rally configurations.
 
 ### Group/Car IDs
 
@@ -163,19 +175,22 @@ python main.py
 
 [https://rallysimfans.hu/rbr/stages.php](https://rallysimfans.hu/rbr/stages.php)
 
-### Rally Specifications
-
-Damage Levels:
+### Damage Levels
 
 | ID | Name |
 | -- | ---- |
 | 2 | Reduced |
 | 3 | Realistic |
 
-- Stage Length must be >= 2 <= 69
-- Leg Length must be >= 1 <= 6
+### Stage Length
 
-Pacenote Options:
+Stage Length must be >= 2 <= 69
+
+### Leg Length
+
+Leg Length must be >= 1 <= 6
+
+### Pacenote Options
 
 | ID | Name |
 | -- | ---- |
@@ -186,14 +201,24 @@ Pacenote Options:
 | 4 | Only pacenote audio |
 | 12 | No pacenote symbols and audio |
 
-Road Service Minutes:
+### Mechanic Skill
+
+| ID | Skill |
+| -- | ----- |
+| 1 | Inexperienced |
+| 2 | Proficient |
+| 3 | Competent |
+| 4 | Skilled |
+| 5 | Expert |
+
+### Road Service Minutes
 
 | ID | Minutes |
 | -- | ------- |
 | 0 | No service |
 | 2 | 2 minutes |
 | 3 | 3 minutes |
-| 5 | 5 minutes | 
+| 5 | 5 minutes |
 
 ### Stage Surfaces
 
@@ -207,14 +232,25 @@ Road Service Minutes:
 
 | ID | Wear Status |
 | -- | ----------- |
+| -1 | Auto |
 | 1 | New |
 | 2 | Normal |
 | 3 | Worn |
+
+### Stage Wetness
+
+| ID | Wetness |
+| -- | ------- |
+| -1 | Auto |
+| 1 | Dry |
+| 2 | Damp |
+| 3 | Wet |
 
 ### Set Tyre
 
 | ID | Name |
 | -- | ---- |
+| -1 | Auto |
 | 0 | Tarmac Dry |
 | 1 | Tarmac Intermediate |
 | 2 | Tarmac Wet |
@@ -222,11 +258,9 @@ Road Service Minutes:
 | 4 | Gravel Intermediate |
 | 5 | Gravel Wet |
 | 6 | Snow |
+| 7 | Keep Previous |
 
 ### Stage Weathers
-
-There is id for each of these weather conditions, but the id is not always
-the same for other track.
 
 - Evening Clear Crisp
 - Evening Clear Hazy
