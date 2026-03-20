@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rsfor"
+version = "0.1.0"
+description = "Automates online rally creation on RallySimFans"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "beautifulsoup4==4.14.3",
+    "colorlog==6.10.1",
+    "dateparser==1.3.0",
+    "python-dotenv==1.2.2",
+    "PyYAML==6.0.3",
+    "Requests==2.32.5",
+    "selenium==4.41.0",
+    "webdriver_manager==4.0.2",
+]
+
+[tool.setuptools]
+py-modules = ["main", "bot", "config", "stage", "utils"]
+
+[project.scripts]
+rsfor = "main:main"
