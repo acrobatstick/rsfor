@@ -181,8 +181,16 @@ class Bot:
             if at_leg == 2 and self.config.super_rally:
                 Select(self.driver.find_element(By.NAME, "super_rally")).select_by_value("150")
 
-            # TODO: convert timezone provided in configuration to hungary timezone on last leg
-            # TODO: handle leg open/close time from config
+            if self.config.open_time is not None and self.config.close_time:
+                open_time = self.driver.find_element(By.NAME, "open_time")
+                open_time.clear()
+                open_time.send_keys(self.config.datetime_tostr(self.config.open_time))
+
+                close_time = self.driver.find_element(By.NAME, "close_time")
+                close_time.clear()
+                close_time.send_keys(self.config.datetime_tostr(self.config.close_time))
+            else:
+                self.logger.warning("Leg open or close time is not provided, using default time")
 
             time.sleep(5)
             self._click_next()

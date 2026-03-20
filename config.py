@@ -7,6 +7,8 @@ from html import unescape
 from pathlib import Path
 from typing import ClassVar, TypeAlias, cast
 from urllib.parse import urlparse
+import dateparser
+from datetime import datetime, timedelta
 
 import requests
 import yaml
@@ -77,7 +79,7 @@ class Config:
     MAX_STAGE_COUNT: ClassVar[int] = 69
     MIN_LEG_COUNT: ClassVar[int] = 1
     MAX_LEG_COUNT: ClassVar[int] = 6
-    logger: logging.Logger = field(default_factory=lambda: logging.getLogger(__name__))
+    logger: logging.Logger = field(default_factory=lambda: logging.getLogger("rsfor"))
     name: str = "Rally Test"
     description: str = "Description Test"
     damage: Damage = Damage.Realistic
@@ -91,6 +93,8 @@ class Config:
     is_url: bool = False
     legs: dict[int, list[Stage]] = field(default_factory=dict)
     super_rally: bool = True
+    open_time: datetime | None = None
+    close_time: datetime | None = None
 
     def __str__(self) -> str:
         stages_str = "\n".join(f"  {str(stage).replace(chr(10), chr(10) + '  ')}" for stage in self.stages())
@@ -106,7 +110,9 @@ class Config:
             f"  roadside_service: {self.roadside_service}\n"
             f"  physics_ver     : {self.physics_ver}\n"
             f"  car_groups      : {car_groups_str}\n"
-            f"  stages          :\n{stages_str}"
+            f"  stages          :\n{stages_str}\n"
+            f"  open_time       : {self.open_time}\n"
+            f"  close_time      : {self.close_time}"
         )
 
     def __post_init__(self) -> None:
@@ -139,6 +145,12 @@ class Config:
         if self.leg_count > self.stage_count:
             self.logger.error("Cannot have more legs than stages")
             sys.exit(1)
+
+        if self.open_time is not None and self.close_time is not None:
+            date_diff = abs(self.open_time - self.close_time)
+            if date_diff < timedelta(days=1):
+                self.logger.error("Leg must open for at least a day")
+                sys.exit(1)
 
     @classmethod
     def from_path(cls, logger: logging.Logger, path: str, name: str = "", password: str = "") -> "Config":
@@ -179,6 +191,8 @@ class Config:
         self.physics_ver = int(data.get("physics_ver", self.physics_ver))
         self.car_groups = [str(car_id) for car_id in data.get("car_groups", self.car_groups)]
         self.super_rally = data.get("super_rally", self.super_rally)
+        self.open_time = self._parse_date(data.get("open_time", self.open_time))
+        self.close_time = self._parse_date(data.get("close_time", self.close_time))
 
         stages = [
             Stage(
@@ -262,14 +276,19 @@ class Config:
 
         self.__post_init__()  # re-run validation after loading
 
-    def _set_from_map(self, data: list) -> None:
-        for cells in data:
+    def _set_from_map(self, data: list) -> None:  # noqa: C901 fuck you
+        to_remove = []
+        for i, cells in enumerate(data):
             if len(cells) != 2:
+                to_remove.append(i)
                 continue
             key, value = cells
             value = value.strip()
             mapped = KEY_MAP.get(key.strip())
             if not mapped or not hasattr(self, mapped):
+                # dont pop leg rows
+                if "Leg" not in key.strip():
+                    to_remove.append(i)
                 continue
             match mapped:
                 case "leg_count":
@@ -285,6 +304,11 @@ class Config:
                 case _:
                     setattr(self, mapped, value)
 
+            to_remove.append(i)
+
+        for i in reversed(to_remove):
+            data.pop(i)
+
     def _scrape_table1(self, table: Tag) -> None:
         data = []
         rows = table.find_all("tr")
@@ -295,6 +319,7 @@ class Config:
 
         self.name = data.pop(0)[0]
         self._set_from_map(data)
+        # TODO: not sure yet if we want to copy the online rally leg schedule
 
     def _parse_stageid_from_tip(self, div: object) -> int:
         if not isinstance(div, Tag):
@@ -419,7 +444,6 @@ class Config:
                 # should not raise this error
                 raise LookupError
             ret.extend(stages)
-        # TODO: should this be sorted like this?
         return sorted(ret, key=lambda s: s.start_at_leg)
 
     def generate_legs_start_at(self) -> list[int]:
@@ -503,3 +527,32 @@ class Config:
         with path.open("w") as f:
             yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
             self.logger.info("Rally configuration dumped at %s", path)
+
+    def _parse_date(self, date: str) -> datetime:
+        try:
+            datetime.strptime(date, "%Y-%m-%d %H:%M")  # noqa: DTZ007 (ignore %z because explicit timezone are optional)
+        except ValueError:
+            msg = f"Invalid date format '{date}', expected format: YYYY-MM-DD HH:MM"
+            self.logger.exception(msg)
+            raise
+
+        check = dateparser.parse(date)
+
+        if not check:
+            msg = f"Unable to parse date {date}"
+            raise ValueError(msg)
+
+        if check.tzinfo is None:
+            tz = datetime.now().astimezone().tzname()
+            self.logger.warning("Timezone is not provided, using local timezone %r instead", tz)
+
+        parsed = dateparser.parse(date, settings={"RETURN_AS_TIMEZONE_AWARE": True})
+
+        if parsed is None:
+            self.logger.error("Unexpected None after successful check for date: %r", date)
+            sys.exit(1)
+
+        return parsed.replace(tzinfo=None)
+
+    def datetime_tostr(self, date: datetime) -> str:
+        return date.strftime("%Y-%m-%d %H:%M:%S")
