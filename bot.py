@@ -75,29 +75,17 @@ class Bot:
 
         # TODO: handle if captcha is turned on
 
-        # Check if authorized after login submission by looking for
-        # logged in RSF username
-        try:
-            self.logger.info("Logged in successfully")
-            time.sleep(2)
-
-        except TimeoutException:
-            try:
-                error_div = WebDriverWait(self.driver, 1).until(
-                    ec.visibility_of_element_located((By.ID, "errorMessages"))
-                )
-
-                error_content = error_div.get_attribute("textContent")
-                if error_content is None:
-                    self.logger.warning("Login failed")
-                    sys.exit(1)
-
-                self.logger.warning("Error: %s", error_content.strip())
+        # check whether user is authorized or not by checking the error messages
+        # from the div (idk if this valid method or not, lol)
+        with contextlib.suppress(TimeoutException):
+            error_div = WebDriverWait(self.driver, 1).until(ec.visibility_of_element_located((By.ID, "errorMessages")))
+            error_content = error_div.get_attribute("textContent")
+            if error_content is not None:
+                self.logger.error(error_content.strip())
                 sys.exit(1)
 
-            except TimeoutException:
-                self.logger.fatal("Neither login success nor error message found.")
-                sys.exit(1)
+        self.logger.info("Logged in successfully")
+        time.sleep(2)
 
     def _step_rally(self) -> None:
         self.driver.get("https://rallysimfans.hu/rbr/rally_online.php?centerbox=create/rally_create.php&uj=true")
