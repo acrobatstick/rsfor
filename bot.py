@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import os
 import sys
 import time
 from typing import TYPE_CHECKING
@@ -43,9 +42,9 @@ class Bot:
         self.config = config
         self.driver = Chrome(service=service)
 
-    def run(self) -> None:
+    def run(self, creds: tuple[str, str]) -> None:
         try:
-            self._login()
+            self._login(creds)
             self._step_rally()
             self._step_cars()
             self._step_legs()
@@ -53,9 +52,9 @@ class Bot:
         finally:
             self.driver.quit()
 
-    def _login(self) -> None:
-        username = os.getenv("RSF_USERNAME")
-        password = os.getenv("RSF_PASSWORD")
+    def _login(self, creds: tuple[str, str]) -> None:
+        username = creds[0]
+        password = creds[1]
 
         if not username or not password:
             self.logger.error("RSF username and password is required")

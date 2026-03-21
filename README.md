@@ -21,6 +21,13 @@ pip install .
 
 ## Usage
 
+> [!WARNING]
+> Before running the program. You must provide your RSF account credentials by doing:
+
+```bash
+rsfor creds --username <u> --password <p>
+```
+
 ```bash
 # Create online rally based on the existing rally
 rsfor -i <LINK TO ONLINE RALLY> run --dump

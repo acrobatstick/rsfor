@@ -2,14 +2,14 @@ import logging
 import re
 import sys
 from dataclasses import asdict, dataclass, field, fields
+from datetime import datetime, timedelta
 from enum import Enum
 from html import unescape
 from pathlib import Path
 from typing import ClassVar, TypeAlias, cast
 from urllib.parse import urlparse
-import dateparser
-from datetime import datetime, timedelta
 
+import dateparser
 import requests
 import yaml
 from bs4 import BeautifulSoup, ResultSet, Tag

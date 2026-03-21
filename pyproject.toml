@@ -19,6 +19,11 @@ dependencies = [
     "webdriver_manager==4.0.2",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "types-beautifulsoup4",
+]
+
 [tool.setuptools]
 py-modules = ["main", "bot", "config", "stage", "utils"]
 
