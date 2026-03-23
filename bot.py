@@ -258,13 +258,17 @@ class Bot:
                     self.driver.find_element(By.CSS_SELECTOR, f"input[id='surface{s.surface_wear.value}']").click()
                 Select(self.driver.find_element(By.ID, "service_time")).select_by_value(str(s.service_time))
 
-            # to prevent flooding the online rally list. remove this if the program is fully working
             if i < int(self.config.stage_count) - 1:
                 time.sleep(5)
                 self._click_next()
                 self._wait_for_state()
 
-        time.sleep(10)
+        self.logger.warning("Please review the online rally on the browser before clicking save")
+        # wait for user clicking the save button
+        try:
+            WebDriverWait(self.driver, 300).until(ec.invisibility_of_element((By.NAME, "save_button")))
+        except TimeoutException:
+            self.logger.info("Timeout exceeded. Online rally is not saved")
 
     def _click_next(self) -> None:
         attempts = 0
