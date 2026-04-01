@@ -2,7 +2,7 @@ import logging
 import re
 import sys
 from dataclasses import asdict, dataclass, field, fields
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from html import unescape
 from pathlib import Path
@@ -80,8 +80,8 @@ class Config:
     MIN_LEG_COUNT: ClassVar[int] = 1
     MAX_LEG_COUNT: ClassVar[int] = 6
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger("rsfor"))
-    name: str = "Rally Test"
-    description: str = "Description Test"
+    name: str = field(default_factory=lambda: "Rally " + datetime.now(tz=timezone.utc).strftime("%Y-%m-%d"))
+    description: str = "Online rally created with https://github.com/acrobatstick/rsfor"
     damage: Damage = Damage.Realistic
     stage_count: int = 2
     leg_count: int = 2
