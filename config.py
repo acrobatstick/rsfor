@@ -36,7 +36,7 @@ class Damage(Enum):
 
     @staticmethod
     def from_str(value: str) -> "Damage":
-        match value:
+        match value.lower():
             case "reduced" | "2":
                 return Damage.Reduced
             case "realistic" | "3":
@@ -56,17 +56,17 @@ class PacenoteStyle(Enum):
     @staticmethod
     def from_str(value: str) -> "PacenoteStyle":
         match value.lower():
-            case "normal pacenotes" | "0":
+            case "normal pacenotes" | "0" | "normal":
                 result = PacenoteStyle.Normal
-            case "don't show 3d pacenotes" | "1":
+            case "don't show 3d pacenotes" | "1" | "no_3d_pacenotes":
                 result = PacenoteStyle.No_3D_Pacenotes
-            case "don't show the countdown of pacenote distance" | "2":
+            case "don't show the countdown of pacenote distance" | "2" | "no_countdown":
                 result = PacenoteStyle.No_Countdown
-            case "don't show the 3d pacenote and countdown of pace note distance" | "3":
+            case "don't show the 3d pacenote and countdown of pace note distance" | "3" | "no_3d_and_countdown":
                 result = PacenoteStyle.No_3D_And_Countdown
-            case "only pacenote audio" | "4":
+            case "only pacenote audio" | "4" | "audio_only":
                 result = PacenoteStyle.Audio_Only
-            case "no pacenote symbols and audio" | "12":
+            case "no pacenote symbols and audio" | "12" | "no_symbols_and_audio":
                 result = PacenoteStyle.No_Symbols_And_Audio
             case _:
                 raise utils.UnknownValueError(prop="Pacenote Style", value=value)
@@ -191,8 +191,13 @@ class Config:
         self.physics_ver = int(data.get("physics_ver", self.physics_ver))
         self.car_groups = [str(car_id) for car_id in data.get("car_groups", self.car_groups)]
         self.super_rally = data.get("super_rally", self.super_rally)
-        self.open_time = self._parse_date(data.get("open_time", self.open_time))
-        self.close_time = self._parse_date(data.get("close_time", self.close_time))
+
+        open_time = data.get("open_time", self.open_time)
+        if open_time is not None:
+            self.open_time = self._parse_date(open_time)
+        close_time = data.get("close_time", self.close_time)
+        if close_time is not None:
+            self.close_time = self._parse_date(close_time)
 
         stages = [
             Stage(

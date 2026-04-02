@@ -26,21 +26,21 @@ class Tyre(Enum):
         match value:
             case "auto" | "-1":
                 result = Tyre.Auto
-            case "tarmac dry" | "0":
+            case "tarmac dry" | "0" | "tarmac_dry":
                 result = Tyre.Tarmac_Dry
-            case "tarmac intermediate" | "1":
+            case "tarmac intermediate" | "1" | "tarmac_intermediate":
                 result = Tyre.Tarmac_Intermediate
-            case "tarmac wet" | "2":
+            case "tarmac wet" | "2" | "tarmac_wet":
                 result = Tyre.Tarmac_Wet
-            case "gravel dry" | "3":
+            case "gravel dry" | "3" | "gravel_dry":
                 result = Tyre.Gravel_Dry
-            case "gravel intermediate" | "4":
+            case "gravel intermediate" | "4" | "gravel_intermediate":
                 result = Tyre.Gravel_Intermediate
-            case "gravel wet" | "5":
+            case "gravel wet" | "5" | "gravel_wet":
                 result = Tyre.Gravel_Wet
             case "snow" | "6":
                 result = Tyre.Snow
-            case "keep previous" | "keep" | "7":
+            case "keep previous" | "keep" | "7" | "keep_previous" | "null":
                 result = Tyre.Keep_Previous
             case _:
                 raise UnknownValueError(prop="Tyre", value=value)
